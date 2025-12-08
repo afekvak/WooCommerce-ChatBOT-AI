@@ -1,0 +1,175 @@
+WooCommerce MCP — Full CRUD + Analytics + AI Tool Ideas
+===============================================================
+
+what to do when adding a tool:
+1. first of all create a function that fetches information using api in WooCRUD.ts
+2. Add a formatting function in utils/formatWoo.ts
+3. add schemas/args and register mcp tool in tools/woo folder depends on the crud types
+4. add quick/intent rules
+5. check if the AI calls the tool correctly using the widget
+6. when the tool works correctly checkmark it in the list below
+
+
+SECTION 1: PRODUCTS – FULL CRUD & QUERY VARIANTS
+------------------------------------------------
+✅✅ createProduct — Create a new product
+✅✅ updateProductById — Update product by numeric ID
+✅✅ updateProductBySKU — Update product by SKU
+- deleteProductById — Delete product by numeric ID
+- trashProductById — Move product to trash
+- restoreTrashedProductById — Restore product from trash
+✅✅ getProductById — Fetch single product by ID
+✅✅ getProductBySku — Fetch product by SKU
+✅✅ getProductsByCategory — List products inside a category
+✅✅ getProductsByName — Fetch products array with the name
+- getProductsByTag — List products filtered by tag
+- getProductsByAttributes — Filter by attributes (color, size, etc.)
+- getProductsByStatus — Query by draft, pending, private, published
+- getProductsByStockStatus — Query by instock / outofstock / backorder
+- getProductsBySearchQuery — Search products by name or description
+✅✅ getAllProducts — Fetch all products (with pagination) 
+- getVariableProductChildren — Fetch variations of a specific product
+- createProductCategory — Create a new product category
+- updateProductCategory — Edit category details (name, slug, parent)
+- deleteProductCategory — Delete category
+- getAllProductCategories — Retrieve all categories
+- uploadProductImage — Upload image to a product
+- removeProductImage — Delete an image from a product gallery
+- setFeaturedImage — Set the featured image for a product
+- duplicateProduct — Clone an existing product
+✅✅ bulkUpdatePrice 
+
+SECTION 2: VARIATIONS
+---------------------
+- createVariation — Add variation to variable product
+- updateVariation — Update variation by ID
+- deleteVariation — Delete variation
+- getVariationById — Fetch variation by numeric ID
+- getVariationsByProductId — List all variations for a product
+
+SECTION 3: INVENTORY & STOCK MANAGEMENT
+---------------------------------------
+✅(in update) updateStockByProductId — Set/adjust stock
+✅(in update and bulk update) increaseStock — Increment stock value
+✅(in update and bulk update) reduceStock — Decrement stock value
+- getLowStockProducts — Identify products below threshold
+- getOutOfStockProducts — List products out of stock
+- getBackorderProducts — List products on backorder
+✅✅ bulkUpdateStock — Update stock levels for multiple products
+- getStockHistory — (AI simulated) summarize stock movements
+
+SECTION 4: ORDERS – FULL CRUD
+-----------------------------
+- getOrderById — Retrieve one order
+- getOrdersByStatus — Filter by processing, completed, cancelled, etc.
+- getOrdersByCustomerId — Orders of one customer
+- getOrdersByDateRange — Orders within date window
+- getOrdersByProductId — Orders that contain a specific product
+- createOrder — Programmatically create an order
+- updateOrderStatus — Change to completed, refunded, etc.
+- deleteOrderById — Delete an order
+- refundOrder — Issue refund (partial or full)
+- getAllOrders — Fetch all orders (paginated)
+
+SECTION 5: CUSTOMERS – FULL CRUD
+--------------------------------
+- createCustomer — Create new customer
+- updateCustomer — Update info (email, address, name)
+- deleteCustomerById — Delete customer
+- getCustomerById — Fetch customer
+- getCustomerByEmail — Fetch by email
+- getAllCustomers — List all customers
+- getCustomerOrders — Get all orders for a customer
+- getCustomerLifetimeValue — Total spent (requires analytics)
+
+SECTION 6: COUPONS – FULL CRUD
+------------------------------
+- createCoupon — Add coupon
+- updateCoupon — Edit coupon
+- deleteCoupon — Remove coupon
+- getCouponByCode — Retrieve specific coupon
+- getAllCoupons — List all coupons
+
+SECTION 7: SHIPPING & TAX
+-------------------------
+- getShippingMethods — List available shipping methods
+- createShippingZone — Add zone
+- updateShippingZone — Modify zone
+- deleteShippingZone — Delete zone
+- getTaxRates — List tax rates
+- createTaxRate — Add new tax rate
+- updateTaxRate — Edit tax rate
+- deleteTaxRate — Remove a tax rate
+
+SECTION 8: ANALYTICS (WooCommerce Reports)
+------------------------------------------
+- getTotalSalesToday
+- getTotalSalesThisMonth
+- getTotalOrdersToday
+- getTotalOrdersThisWeek
+- getMostSoldProducts
+- getTopCustomers
+- getRevenueByDateRange
+- getRefundsByDateRange
+- getSalesHeatmap — Sales per hour/day
+- getAverageOrderValue
+- getConversionRateEstimates
+- getRepeatCustomerRate
+- getTopCategoriesByRevenue
+- getTopTagsByRevenue
+
+SECTION 9: CART & CHECKOUT (Useful for AI agent)
+------------------------------------------------
+- getCartContents (AI simulated)
+- simulateCartRecommendation — Suggest upsells or cross-sells
+- simulateCheckoutInsights — Predict what’s missing for conversion
+
+SECTION 10: GLOBAL ADMIN / STORE MANAGEMENT
+-------------------------------------------
+- getStoreSettings
+- updateStoreSettings
+- getStoreCurrency
+- getPaymentGateways
+- getActivePlugins
+- getThemeInfo
+- getSystemStatusReport
+- runHealthCheck (AI summarized)
+
+SECTION 11: ADVANCED AI-POWERED TOOLS
+-------------------------------------
+- getMostSoldProductToday
+- getMostSoldProductThisWeek
+- getMostViewedProducts (requires analytics plugin)
+- getUnderperformingProducts
+- getSlowSellingProducts
+- suggestProductImprovements — AI descriptions, pricing suggestions
+- suggestCrossSellProducts
+- autoTagProducts — AI generates tags
+- autoWriteProductDescription — AI copywriting
+- detectFraudulentOrders
+- predictInventoryShortage — Forecast stock exhaustion date
+- predictMonthlyRevenue — ML/AI estimation
+- generateStoreSummary — AI narrative summary of store performance
+- anomaliesInOrders — Detect weird spikes/drops
+- getCustomerSegmentation — AI clusters based on buying patterns
+- getProductReviewSentiment — NLP analysis
+- detectTopReasonsForRefunds — AI extraction
+- generateExecutiveReport — Full PDF-ready AI summary
+- detectVIPCustomers
+- getChurnedCustomers — People who stopped buying
+- forecastTrendingProducts
+
+SECTION 12: UTILITY / HELPER TOOLS
+----------------------------------
+✅ getDate
+- convertCurrency
+- healthPing
+- getServerInfo
+- clearCache
+- warmCache
+- testToolLatency
+- debugTool — Returns debug data
+- getMCPToolList — List available MCP tools
+
+===============================================================
+END OF FILE

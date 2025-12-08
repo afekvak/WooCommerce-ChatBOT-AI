@@ -1,0 +1,14 @@
+{
+  "workspace": {
+    "id": "4d1f064f-e764-4140-8126-c8c75de72d85"
+  },
+  "entities": {
+    "collections": [
+      "..\\postman\\collections\\WooCommerce.postman_collection.json"
+    ],
+    "environments": [],
+    "specs": [],
+    "flows": [],
+    "globals": []
+  }
+}

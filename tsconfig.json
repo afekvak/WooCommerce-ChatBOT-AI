@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",                   // fine
+    "module": "CommonJS",                 // ✅ use CommonJS so Node can run dist/*.js
+    "moduleResolution": "Node",           // ✅ use Node-style resolution
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "outDir": "dist",                     // compiled files go here
+    "rootDir": "src"                      // source code lives here
+  },
+  "include": ["src"]
+}
+

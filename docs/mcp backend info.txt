@@ -1,0 +1,28 @@
+mcp backend notes : 
+when switching to a real domain we need to change server.ts to run on the domain
+
+in app.ts add allowed domains so they can use the chatbot
+
+in chatgpt.ts real openai key we use
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+and in env change model
+LLMMODEL = "gpt 3.5"
+
+for use with open router for free testing
+apiKey: process.env.OPENROUTER_KEY,
+baseURL: process.env.OPENROUTER_BASE_URL
+and in completion func change model to a free model like 
+LLMMODEL = "minimax/minimax-m2:free"
+
+in widget.js when using real domain switch this in env
+MCPURLDATASERVER = "http://(address)/chat"
+
+and in the widget change out the local adress 
+src="http://(address)/widget.js?v=3"
+data-server="http://(address)/chat"
+
+to run in dev mod - npm run dev (runs nodemon and auto restarts)
+to run in build mod - npm start (this creates the dist folder)
+
+
+

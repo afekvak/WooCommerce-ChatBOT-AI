@@ -1,0 +1,2105 @@
+{
+	"info": {
+		"_postman_id": "24260959-c279-421b-b42e-949111c08ea3",
+		"name": "WooCommerce",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "40343292"
+	},
+	"item": [
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "Get All Orders",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/orders",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"orders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "UPDATE Order",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"status\":\"processing\",\"payment_method\":\"bacs\",\"payment_method_title\":\"Direct Bank Transfer\"}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/orders/1840",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"orders",
+								"1840"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Order",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/orders/1840?force=true",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"orders",
+								"1840"
+							],
+							"query": [
+								{
+									"key": "force",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "CREATE Order",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"status\": \"pending\",\r\n    \"currency\": \"ILS\",\r\n    \"customer_id\": 2,\r\n    \"billing\": {\r\n        \"first_name\": \"John\",\r\n        \"last_name\": \"Doe\",\r\n        \"company\": \"\",\r\n        \"address_1\": \"123 Main St\",\r\n        \"address_2\": \"\",\r\n        \"city\": \"Tel Aviv\",\r\n        \"state\": \"\",\r\n        \"postcode\": \"12345\",\r\n        \"country\": \"IL\",\r\n        \"email\": \"john@example.com\",\r\n        \"phone\": \"0501234567\"\r\n    },\r\n    \"shipping\": {\r\n        \"first_name\": \"John\",\r\n        \"last_name\": \"Doe\",\r\n        \"company\": \"\",\r\n        \"address_1\": \"123 Main St\",\r\n        \"address_2\": \"\",\r\n        \"city\": \"Tel Aviv\",\r\n        \"state\": \"\",\r\n        \"postcode\": \"12345\",\r\n        \"country\": \"IL\",\r\n        \"phone\": \"0501234567\"\r\n    },\r\n    \"line_items\": [\r\n        {\r\n            \"product_id\": 1837,\r\n            \"quantity\": 1\r\n        }\r\n    ],\r\n    \"payment_method\": \"bacs\",\r\n    \"payment_method_title\": \"Direct Bank Transfer\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/orders",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"orders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET Single Order",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/orders/1840",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"orders",
+								"1840"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Prodeucts",
+			"item": [
+				{
+					"name": "Get All Products",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"המים של ליאור אלון\",\r\n  \"slug\": \"water-bottle-neviot\",\r\n  \"status\": \"publish\",\r\n  \"featured\": false,\r\n  \"catalog_visibility\": \"visible\",\r\n\r\n  \"description\": \"Updated description\",\r\n  \"short_description\": \"כשר לפסח\",\r\n\r\n  \"sku\": \"water1\",\r\n\r\n  \"regular_price\": \"10.99\",\r\n  \"sale_price\": \"5.99\",\r\n\r\n  \"date_on_sale_from\": null,\r\n  \"date_on_sale_to\": null,\r\n\r\n  \"virtual\": false,\r\n  \"downloadable\": false,\r\n  \"downloads\": [],\r\n  \"download_limit\": -1,\r\n  \"download_expiry\": -1,\r\n\r\n  \"tax_status\": \"taxable\",\r\n  \"tax_class\": \"\",\r\n\r\n  \"manage_stock\": true,\r\n  \"stock_quantity\": 15,\r\n  \"backorders\": \"no\",\r\n  \"low_stock_amount\": null,\r\n  \"sold_individually\": false,\r\n\r\n  \"weight\": \"100\",\r\n  \"dimensions\": {\r\n    \"length\": \"100\",\r\n    \"width\": \"100\",\r\n    \"height\": \"100\"\r\n  },\r\n\r\n  \"shipping_required\": true,\r\n  \"shipping_taxable\": true,\r\n  \"shipping_class\": \"\",\r\n\r\n  \"reviews_allowed\": true,\r\n  \"purchase_note\": \"thank you for your purchase\",\r\n\r\n  \"categories\": [\r\n    { \"id\": 214 }\r\n  ],\r\n\r\n  \"tags\": [\r\n    { \"id\": 215 }\r\n  ],\r\n\r\n  \"images\": [\r\n    {\r\n      //\"src\": \"https://your-image-url.jpg\",\r\n      //\"position\": 0\r\n    }\r\n  ],\r\n\r\n  \"attributes\": [\r\n    {\r\n      \"name\": \"Liter Value\",\r\n      \"visible\": true,\r\n      \"variation\": false,\r\n      \"options\": [\"1\", \"2\", \"3\"]\r\n    }\r\n  ],\r\n\r\n  \"default_attributes\": [],\r\n\r\n  \"menu_order\": 0,\r\n\r\n  \"upsell_ids\": [],\r\n  \"cross_sell_ids\": [],\r\n\r\n  \"grouped_products\": [],\r\n\r\n  \"meta_data\": [\r\n    {\r\n      \"key\": \"_custom_key\",\r\n      \"value\": \"custom value\"\r\n    }\r\n  ]\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/1837",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"1837"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Product",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "consumer_key",
+								"value": "{{consumer_key}}"
+							},
+							{
+								"key": "consumer_secret",
+								"value": "{{consumer_secret}}"
+							}
+						],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/1841",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"1841"
+							],
+							"query": [
+								{
+									"key": "consumer_key",
+									"value": "{{consumer_key}}"
+								},
+								{
+									"key": "consumer_secret",
+									"value": "{{consumer_secret}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Product",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Portable Power Bank 20000mAh\",\r\n  \"slug\": \"portable-power-bank-20000mah\",\r\n  \"type\": \"simple\",\r\n  \"status\": \"publish\",\r\n  \"description\": \"High-capacity power bank with fast charging and dual USB-C ports.\",\r\n  \"short_description\": \"20000mAh Fast Charge Power Bank\",\r\n  \"sku\": \"powerbank-20000-883\",\r\n  \"regular_price\": \"159\",\r\n  \"sale_price\": \"129\",\r\n  \"manage_stock\": true,\r\n  \"stock_quantity\": 120,\r\n  \"weight\": \"410\",\r\n  \"dimensions\": { \"length\": \"15\", \"width\": \"7\", \"height\": \"2\" },\r\n  \"purchase_note\": \"Stay powered anywhere!\",\r\n  \"categories\": [{ \"id\": 214 }],\r\n  \"tags\": [{ \"id\": 215 }],\r\n  \"images\": [\r\n    {\r\n      //\"src\": \"https://images.unsplash.com/photo-1528662892525-efd1f1b4c0bf?q=80\",\r\n      //\"position\": 0\r\n    }\r\n  ],\r\n  \"attributes\": [\r\n    {\r\n      \"name\": \"Capacity\",\r\n      \"visible\": true,\r\n      \"variation\": false,\r\n      \"options\": [\"20000mAh\"]\r\n    }\r\n  ]\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products"
+							]
+						},
+						"description": "Note: The current 400 error is related to the product image URL in the request body. The remote image URL (https://images.unsplash.com/photo-1526401485004-2aa7e3a51228) is not accessible or returns a 404. To resolve this, either use a valid accessible image URL, remove the image from the product data, or upload the image separately after creating the product. Authentication is working correctly with OAuth 1.0."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/1837",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"1837"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Get All Category",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/categories\n",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"categories\n"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"Electronics\",\r\n  \"slug\": \"electronics\",\r\n  \"description\": \"Electronic devices including headphones, speakers, laptops, monitors and accessories.\",\r\n  \"display\": \"default\",\r\n  \"image\": {\r\n    //\"src\": \"https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?q=80\"\r\n  },\r\n  \"menu_order\": 0\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/categories/214\n",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"categories",
+								"214\n"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "password",
+									"value": "cs_1aab31ccc653e6bbd89343206ea173c4abfe281a\n",
+									"type": "string"
+								},
+								{
+									"key": "username",
+									"value": "ck_15f80d03eeb3a44af3cf4c78f2dcea4fa1465f93\n",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/categories/225?force=true",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"categories",
+								"225"
+							],
+							"query": [
+								{
+									"key": "force",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Category",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"name\": \"LED Lighting\",\r\n  \"slug\": \"led-lighting\",\r\n  \"description\": \"Energy-efficient LED smart lighting.\"\r\n  // \"image\": { \"src\": \"https://images.unsplash.com/photo-1528662892525-efd1f1b4c0bf?q=80\" }\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/categories\n",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"categories\n"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Category",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products/categories/225\n?=",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products",
+								"categories",
+								"225\n"
+							],
+							"query": [
+								{
+									"key": "",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Coupons",
+			"item": [
+				{
+					"name": "Get All Coupons",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/products?sku=\n",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"products"
+							],
+							"query": [
+								{
+									"key": "sku",
+									"value": "\n"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Coupon",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"code\": \"freeshipping\",\r\n  \"amount\": \"50\",\r\n  \"discount_type\": \"percent\",\r\n  \"description\": \"Free shipping coupon\",\r\n  \"individual_use\": true,\r\n  \"product_ids\": [],\r\n  \"excluded_product_ids\": [],\r\n  \"usage_limit\": 500,\r\n  \"free_shipping\": true,\r\n  \"product_categories\": [],\r\n  \"excluded_product_categories\": [],\r\n  \"exclude_sale_items\": false,\r\n  \"minimum_amount\": \"0.00\",\r\n  \"maximum_amount\": \"0.00\",\r\n  \"email_restrictions\": []\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/Coupons/1857",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"Coupons",
+								"1857"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Coupon",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Coupon",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"code\": \"discount10\",\r\n  \"amount\": \"10\",\r\n  \"discount_type\": \"percent\",\r\n  \"description\": \"10 percent off sitewide\",\r\n  \"individual_use\": false,\r\n  \"product_ids\": [],\r\n  \"excluded_product_ids\": [],\r\n  \"usage_limit\": 100,\r\n  \"usage_limit_per_user\": 1,\r\n  \"free_shipping\": false,\r\n  \"product_categories\": [],\r\n  \"excluded_product_categories\": [],\r\n  \"exclude_sale_items\": false,\r\n  \"minimum_amount\": \"0.00\",\r\n  \"maximum_amount\": \"0.00\",\r\n  \"email_restrictions\": []\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/Coupons",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"Coupons"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Coupon",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/Coupons/1857",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"Coupons",
+								"1857"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customers/users",
+			"item": [
+				{
+					"name": "Get All Customers",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wp/v2/users",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wp",
+								"v2",
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Admin User",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wp/v2/users/2",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wp",
+								"v2",
+								"users",
+								"2"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"first_name\": \"Daniel\",\r\n  \"last_name\": \"Shachar\",\r\n  \"email\": \"daniel.shachar@example.com\",\r\n  \"username\": \"daniel_shachar\",\r\n  \"billing\": {\r\n    \"first_name\": \"Daniel\",\r\n    \"last_name\": \"Shachar\",\r\n    \"company\": \"\",\r\n    \"address_1\": \"Hahagana 32\",\r\n    \"address_2\": \"\",\r\n    \"city\": \"Jerusalem\",\r\n    \"postcode\": \"9450000\",\r\n    \"country\": \"IL\",\r\n    \"state\": \"\",\r\n    \"email\": \"daniel.shachar@example.com\",\r\n    \"phone\": \"0525566777\"\r\n  },\r\n  \"shipping\": {\r\n    \"first_name\": \"Daniel\",\r\n    \"last_name\": \"Shachar\",\r\n    \"company\": \"\",\r\n    \"address_1\": \"Hahagana 32\",\r\n    \"address_2\": \"\",\r\n    \"city\": \"Jerusalem\",\r\n    \"postcode\": \"9450000\",\r\n    \"country\": \"IL\",\r\n    \"state\": \"\",\r\n    \"phone\": \"0525566777\"\r\n  }\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/customers/5",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"customers",
+								"5"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"roni@example.com\",\r\n  \"first_name\": \"Roni\",\r\n  \"last_name\": \"Cohen\",\r\n  \"username\": \"roni_cohen\",\r\n  \"password\": \"User12345!\",\r\n  \"billing\": {\r\n    \"first_name\": \"Roni\",\r\n    \"last_name\": \"Cohen\",\r\n    \"address_1\": \"Weizmann 7\",\r\n    \"city\": \"Ashdod\",\r\n    \"country\": \"IL\",\r\n    \"email\": \"roni@example.com\"\r\n  }\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/customers",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Customer",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://54.87.40.175/index.php/wp-json/wc/v3/customers",
+							"protocol": "http",
+							"host": [
+								"54",
+								"87",
+								"40",
+								"175"
+							],
+							"path": [
+								"index.php",
+								"wp-json",
+								"wc",
+								"v3",
+								"customers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"auth": {
+							"type": "oauth1",
+							"oauth1": [
+								{
+									"key": "consumerSecret",
+									"value": "{{consumer_secret}}",
+									"type": "string"
+								},
+								{
+									"key": "consumerKey",
+									"value": "{{consumer_key}}",
+									"type": "string"
+								},
+								{
+									"key": "addParamsToHeader",
+									"value": false,
+									"type": "boolean"
+								},
+								{
+									"key": "signatureMethod",
+									"value": "HMAC-SHA1",
+									"type": "string"
+								},
+								{
+									"key": "token",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "tokenSecret",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "timestamp",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "nonce",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "version",
+									"value": "1.0",
+									"type": "string"
+								},
+								{
+									"key": "realm",
+									"value": "",
+									"type": "string"
+								},
+								{
+									"key": "addEmptyParamsToSign",
+									"value": false,
+									"type": "boolean"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": []
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
