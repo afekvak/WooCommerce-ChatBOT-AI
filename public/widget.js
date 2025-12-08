@@ -7,7 +7,7 @@
     document.querySelector('script[src*="widget.js"]');
 
   const MCP_URL =
-    scriptEl?.getAttribute("data-server") || "http://localhost:3000/chat";
+    scriptEl?.getAttribute("data-server") || "https://woocommerce-chatbot-ai.onrender.com/chat";
 
   const TITLE =
     scriptEl?.getAttribute("data-title") || "WooCommerce Copilot Assistant";
