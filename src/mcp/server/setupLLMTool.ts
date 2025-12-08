@@ -5,16 +5,28 @@ import { handleUserMessage } from "../llm/router.js";
 
 export const registeredTools: any = {};
 
-export function setupLLMTool(server: McpServer) {
+// keep a simple explicit type for the tool input
+type LlmToolInput = {
+  message: string;
+};
 
+// separate schema so we can cast it
+const llmInputSchema = {
+  message: z.string()
+};
+
+export function setupLLMTool(server: McpServer) {
   // Make sure registry exists
-  if (!(server as any).tools) (server as any).tools = {};
+  if (!(server as any).tools) {
+    (server as any).tools = {};
+  }
 
   // Wrap only ONE TIME
   if (!(server as any)._registerToolWrapped) {
     const original = server.registerTool.bind(server);
 
-    server.registerTool = function (name: string, meta: any, handler: any) {
+    // note the cast to any here to avoid type issues
+    (server as any).registerTool = function (name: string, meta: any, handler: any) {
       // mirror tool
       (server as any).tools[name] = { meta, handler };
       registeredTools[name] = { meta, handler };
@@ -26,15 +38,17 @@ export function setupLLMTool(server: McpServer) {
   }
 
   // Register LLM
-  server.registerTool(
+  (server as any).registerTool(
     "llm",
     {
       title: "LLM Assistant",
       description: "Routers · Rules · Intent Hybrid",
-      inputSchema: { message: z.string() }
+      // important cast: stop TS from trying to derive a huge type
+      inputSchema: llmInputSchema as any
     },
-    async ({ message }) => {
-      const result = await handleUserMessage(message, server);
+    // explicit, simple input type for the handler
+    async (input: LlmToolInput) => {
+      const result = await handleUserMessage(input.message, server);
 
       return {
         content: [
