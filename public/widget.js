@@ -902,13 +902,11 @@
 
       // ---- events ----
       cancelBtn.addEventListener("click", () => {
-        if (meta.wizard === "create_product") {
-          sendMessage("cancel");
-        } else if (meta.wizard === "update_product") {
-          sendMessage("no");
-        }
-        closeWizardConfirmModal();
-      });
+  // Always tell the server to cancel the current wizard
+  sendMessage("cancel");
+  closeWizardConfirmModal();
+});
+
 
       confirmBtn.addEventListener("click", () => {
         if (

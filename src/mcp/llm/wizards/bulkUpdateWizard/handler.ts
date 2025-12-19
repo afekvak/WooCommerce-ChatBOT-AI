@@ -160,10 +160,15 @@ export async function handleBulkUpdateWizardStep(
   const raw = message.trim();
   const t = raw.toLowerCase();
 
-  if (t === "cancel") {
-    clearBulkWizard(sessionId);
-    return { reply: "Bulk update wizard cancelled.", done: true };
-  }
+  if (
+  t === "cancel" ||
+  t === "no" ||
+  /^__WIZ_CANCEL__/i.test(raw)
+) {
+  clearBulkWizard(sessionId);
+  return { reply: "Bulk update wizard cancelled.", done: true };
+}
+
 
   // route by stage
   if (state.stage === "scope") {
