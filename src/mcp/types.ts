@@ -1,4 +1,19 @@
 // src/mcp/types.ts
+// src/mcp/woo/typesToolCtx.ts
+export interface ClientContext {
+  id: string;
+  clientKey: string;
+  name?: string | null;
+  wooUrl?: string | null;
+  wooCk?: string | null;
+  wooCs?: string | null;
+  // add more client fields if needed
+}
+
+export interface ToolCtx {
+  client?: ClientContext;
+}
+
 
 export interface MCPContentBlock {
   [key: string]: unknown;          

@@ -1,3 +1,4 @@
+// src/mcp/woo/wooTools/wooUpdateTools.ts
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import type { MCPToolResponse } from "../../../types";
 import { registeredTools } from "../../registry";
@@ -14,34 +15,49 @@ import {
 
 import {
   updateProduct,
-  updateProductBySku  
+  updateProductBySku
 } from "../../../../controllers/wooUpdateController";
 
-import {
-  formatSingleProduct
-} from "../../../../utils/formatWoo";
+import { formatSingleProduct } from "../../../../utils/formatWoo";
+
+import type { ToolCtx } from "../../../types";
+import { resolveWooCredentials } from "../wooCredentials.js";
 
 export function registerWooUpdateTools(server: McpServer) {
-  // ==========================
   // UPDATE PRODUCT BY ID
-  // ==========================
   const updateProductByIdHandler = async (
-    { url, ck, cs, id, payload }: WooUpdateProductByIdArgs
+    args: WooUpdateProductByIdArgs,
+    ctx?: ToolCtx
   ): Promise<MCPToolResponse> => {
     try {
-      const finalUrl = url ?? process.env.WOO_URL!;
-      const finalCk = ck ?? process.env.WOO_CK!;
-      const finalCs = cs ?? process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const updated = await updateProduct(finalUrl, finalCk, finalCs, id, payload);
+      const updated = await updateProduct(
+        url,
+        ck,
+        cs,
+        args.id,
+        args.payload
+      );
       const html = formatSingleProduct(updated);
 
       return {
         content: [{ type: "text", text: html }]
       };
     } catch (err: any) {
+      const resolvedUrl =
+        (args as any).url ??
+        ctx?.client?.wooUrl ??
+        process.env.WOO_URL ??
+        "none";
+
       return {
-        content: [{ type: "text", text: `❌ Error in woo_update_product_by_id: ${err.message}` }]
+        content: [
+          {
+            type: "text",
+            text: `❌ Error in woo_update_product_by_id: ${err.message} (resolvedUrl=${resolvedUrl})`
+          }
+        ]
       };
     }
   };
@@ -56,30 +72,42 @@ export function registerWooUpdateTools(server: McpServer) {
     updateProductByIdHandler as any
   );
 
+  registeredTools["woo_update_product_by_id"] = {
+    handler: updateProductByIdHandler as any
+  };
 
-  // ==========================
   // UPDATE PRODUCT BY SKU
-  // ==========================
   const updateProductBySkuHandler = async (
-    { url, ck, cs, sku, payload }: WooUpdateProductBySkuArgs
+    args: WooUpdateProductBySkuArgs,
+    ctx?: ToolCtx
   ): Promise<MCPToolResponse> => {
     try {
-      const finalUrl = url ?? process.env.WOO_URL!;
-      const finalCk = ck ?? process.env.WOO_CK!;
-      const finalCs = cs ?? process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const updated = await updateProductBySku(finalUrl, finalCk, finalCs, sku, payload);
+      const updated = await updateProductBySku(
+        url,
+        ck,
+        cs,
+        args.sku,
+        args.payload
+      );
       const html = formatSingleProduct(updated);
 
       return {
         content: [{ type: "text", text: html }]
       };
     } catch (err: any) {
+      const resolvedUrl =
+        (args as any).url ??
+        ctx?.client?.wooUrl ??
+        process.env.WOO_URL ??
+        "none";
+
       return {
         content: [
           {
             type: "text",
-            text: `❌ Error in woo_update_product_by_sku: ${err.message}`
+            text: `❌ Error in woo_update_product_by_sku: ${err.message} (resolvedUrl=${resolvedUrl})`
           }
         ]
       };
@@ -96,8 +124,8 @@ export function registerWooUpdateTools(server: McpServer) {
     } as any,
     updateProductBySkuHandler as any
   );
+
+  registeredTools["woo_update_product_by_sku"] = {
+    handler: updateProductBySkuHandler as any
+  };
 }
-
-  
-
-

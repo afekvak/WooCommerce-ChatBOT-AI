@@ -1,4 +1,5 @@
 // src/mcp/llm/router.ts
+
 import { quickRules } from "./quickRules";
 import { analyzeIntent } from "./intentAnalyzer";
 import { askLLM } from "./llm";
@@ -25,13 +26,45 @@ import {
   handleBulkUpdateWizardStep
 } from "./wizards/bulkUpdateWizard/handler";
 
+import type { ClientContext } from "../types";
+
+interface HandleCtx {
+  client: ClientContext;
+}
+
+// helper to put full client info into debug (masking secrets)
+function buildClientDebug(ctx?: HandleCtx) {
+  if (!ctx || !ctx.client) return null;
+
+  const c: any = ctx.client;
+  const { wooCk, wooCs, ...rest } = c;
+
+  return {
+    ...rest,
+    wooCk: wooCk ? "***" : null,
+    wooCs: wooCs ? "***" : null
+  };
+}
+
+// helper for tools / wizards that expect { client }
+function buildToolCtx(ctx?: HandleCtx) {
+  return ctx && ctx.client ? { client: ctx.client } : undefined;
+}
+
 export async function handleUserMessage(
   message: string,
-  server: any
+  server: any,
+  ctx?: HandleCtx
 ): Promise<BotReply> {
   addUserMessage(message);
 
-  const sessionId = "default"; // single session for now
+  const debugClient = buildClientDebug(ctx);
+  const toolCtx = buildToolCtx(ctx);
+
+  // per-client session (so wizards are separated by client)
+  const sessionId =
+    ctx && ctx.client ? `client_${ctx.client.id}` : "default";
+
   const low = message.toLowerCase().trim();
 
   // ============================================================
@@ -44,7 +77,8 @@ export async function handleUserMessage(
   if (activeCreate && activeCreate.mode === "create_product") {
     const wizardResult = await handleCreateProductWizardStep(
       sessionId,
-      message
+      message,
+      toolCtx
     );
 
     return {
@@ -53,7 +87,9 @@ export async function handleUserMessage(
         {
           mode: "WIZARD",
           wizard: "create_product",
-          done: wizardResult.done
+          done: wizardResult.done,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -64,7 +100,8 @@ export async function handleUserMessage(
   if (activeUpdate) {
     const wizardResult = await handleUpdateProductWizardStep(
       sessionId,
-      message
+      message,
+      toolCtx
     );
 
     return {
@@ -73,7 +110,9 @@ export async function handleUserMessage(
         {
           mode: "WIZARD",
           wizard: "update_product",
-          done: wizardResult.done
+          done: wizardResult.done,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -85,6 +124,7 @@ export async function handleUserMessage(
     const wizardResult = await handleBulkUpdateWizardStep(
       sessionId,
       message
+      // if later bulk wizard needs client, we can add toolCtx here too
     );
 
     return {
@@ -93,7 +133,9 @@ export async function handleUserMessage(
         {
           mode: "WIZARD",
           wizard: "bulk_update",
-          done: wizardResult.done
+          done: wizardResult.done,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -103,7 +145,6 @@ export async function handleUserMessage(
 
   // ============================================================
   // 2. DIRECT CREATE PRODUCT PATTERN
-  //    (intentAnalyzer must NOT call woo_create_product directly)
   // ============================================================
   const wantsCreateProduct =
     /create\s+(a\s+)?product/.test(low) ||
@@ -118,7 +159,9 @@ export async function handleUserMessage(
       debug: JSON.stringify(
         {
           mode: "WIZARD START",
-          wizard: "create_product"
+          wizard: "create_product",
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -132,11 +175,12 @@ export async function handleUserMessage(
   const fast = quickRules(message);
 
   if (fast.hit) {
-    // Start update wizard (id or sku) – if you ever bring this back into quickRules
+    // Start update wizard (id or sku)
     if (fast.tool === "wizard_update_product") {
       const wizardResult = await startUpdateProductWizard(
         sessionId,
-        fast.args || {}
+        fast.args || {},
+        toolCtx
       );
 
       return {
@@ -145,7 +189,9 @@ export async function handleUserMessage(
           {
             mode: "WIZARD START",
             wizard: "update_product",
-            target: fast.args || {}
+            target: fast.args || {},
+            sessionId,
+            client: debugClient
           },
           null,
           2
@@ -153,11 +199,12 @@ export async function handleUserMessage(
       };
     }
 
-    // Start bulk update wizard – same idea
+    // Start bulk update wizard
     if (fast.tool === "wizard_bulk_update") {
       const wizardResult = await startBulkUpdateWizard(
         sessionId,
         fast.args || {}
+        // add toolCtx here later if bulk wizard uses resolveWooCredentials
       );
 
       return {
@@ -166,7 +213,9 @@ export async function handleUserMessage(
           {
             mode: "WIZARD START",
             wizard: "bulk_update",
-            target: fast.args || {}
+            target: fast.args || {},
+            sessionId,
+            client: debugClient
           },
           null,
           2
@@ -182,7 +231,9 @@ export async function handleUserMessage(
           {
             mode: "FAST RULE BLOCK",
             reason:
-              "User hit a quick rule block that requires clarification."
+              "User hit a quick rule block that requires clarification.",
+            sessionId,
+            client: debugClient
           },
           null,
           2
@@ -190,7 +241,7 @@ export async function handleUserMessage(
       };
     }
 
-    // NORMAL FAST RULE WITH TOOL (rare now)
+    // NORMAL FAST RULE WITH TOOL
     if (fast.tool) {
       const tool = server.tools[fast.tool];
       if (!tool) {
@@ -199,7 +250,9 @@ export async function handleUserMessage(
           debug: JSON.stringify(
             {
               mode: "FAST RULE",
-              error: "Tool not registered"
+              error: "Tool not registered",
+              sessionId,
+              client: debugClient
             },
             null,
             2
@@ -207,14 +260,20 @@ export async function handleUserMessage(
         };
       }
 
-      const result: MCPToolResponse = await tool.handler(fast.args ?? {}, {});
+      const result: MCPToolResponse = await tool.handler(
+        fast.args ?? {},
+        toolCtx
+      );
+
       return {
         text: result.content?.[0]?.text || "(empty)",
         debug: JSON.stringify(
           {
             mode: "FAST RULE",
             toolUsed: fast.tool,
-            args: fast.args
+            args: fast.args,
+            sessionId,
+            client: debugClient
           },
           null,
           2
@@ -229,15 +288,14 @@ export async function handleUserMessage(
   const ai: IntentDecision = await analyzeIntent(message);
 
   // 4.a WIZARD STARTS DECIDED BY AI
-  //     toolName "wizard_update_product" means:
-  //     "start the update wizard, user gave id/sku but not the fields"
   if (ai.shouldUseTool && ai.toolName === "wizard_update_product") {
     const rawArgs = ai.args || {};
-    const target = rawArgs.target || rawArgs; // supports { target:{id} } or { id }
+    const target = rawArgs.target || rawArgs;
 
     const wizardResult = await startUpdateProductWizard(
       sessionId,
-      target || {}
+      target || {},
+      toolCtx
     );
 
     return {
@@ -247,7 +305,9 @@ export async function handleUserMessage(
           mode: "AI INTENT WIZARD START",
           wizard: "update_product",
           args: target || {},
-          reason: ai.reason
+          reason: ai.reason,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -262,6 +322,7 @@ export async function handleUserMessage(
     const wizardResult = await startBulkUpdateWizard(
       sessionId,
       wizardArgs
+      // same here: pass toolCtx later if needed
     );
 
     return {
@@ -271,7 +332,9 @@ export async function handleUserMessage(
           mode: "AI INTENT WIZARD START",
           wizard: "bulk_update",
           args: wizardArgs,
-          reason: ai.reason
+          reason: ai.reason,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -279,7 +342,7 @@ export async function handleUserMessage(
     };
   }
 
-  // 4.b NORMAL MCP TOOLS SELECTED BY AI (woo_get_product_by_id etc)
+  // 4.b NORMAL MCP TOOLS SELECTED BY AI
   if (ai.shouldUseTool && ai.toolName) {
     const tool = server.tools[ai.toolName];
 
@@ -290,7 +353,9 @@ export async function handleUserMessage(
           {
             mode: "AI INTENT",
             error: `AI selected tool "${ai.toolName}" but it does not exist`,
-            reason: ai.reason
+            reason: ai.reason,
+            sessionId,
+            client: debugClient
           },
           null,
           2
@@ -298,7 +363,10 @@ export async function handleUserMessage(
       };
     }
 
-    const result: MCPToolResponse = await tool.handler(ai.args ?? {}, {});
+    const result: MCPToolResponse = await tool.handler(
+      ai.args ?? {},
+      toolCtx
+    );
     addAssistantMessage(`(used ${ai.toolName})`);
 
     return {
@@ -308,7 +376,9 @@ export async function handleUserMessage(
           mode: "AI INTENT",
           toolUsed: ai.toolName,
           args: ai.args,
-          reason: ai.reason
+          reason: ai.reason,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -318,7 +388,6 @@ export async function handleUserMessage(
 
   // ============================================================
   // 5. SAFETY: NEVER LET "update product ..." FALL INTO RAW LLM
-  //    (otherwise it will hallucinate "I updated the product")
   // ============================================================
   if (low.includes("update") && low.includes("product")) {
     return {
@@ -335,7 +404,9 @@ export async function handleUserMessage(
           mode: "SAFE UPDATE BLOCK",
           note:
             "Prevented LLM fallback on update phrase so the model does not pretend it updated WooCommerce.",
-          aiReason: ai.reason || null
+          aiReason: ai.reason || null,
+          sessionId,
+          client: debugClient
         },
         null,
         2
@@ -357,7 +428,9 @@ export async function handleUserMessage(
       {
         mode: "LLM FALLBACK",
         toolUsed: null,
-        aiReason: ai.reason || null
+        aiReason: ai.reason || null,
+        sessionId,
+        client: debugClient
       },
       null,
       2

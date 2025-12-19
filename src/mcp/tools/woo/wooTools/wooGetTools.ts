@@ -33,19 +33,19 @@ import {
   formatProductBySku
 } from "../../../../utils/formatWoo";
 
+import type { ToolCtx } from "../../../types";
+import { resolveWooCredentials } from "../wooCredentials.js";
+
 export function registerWooGetTools(server: McpServer) {
-  // ==========================
   // GET ALL PRODUCTS
-  // ==========================
   const getProductsHandler = async (
-    { url, ck, cs, limit }: WooGetProductsArgs
+    args: WooGetProductsArgs,
+    ctx?: ToolCtx
   ): Promise<MCPToolResponse> => {
     try {
-      const finalUrl = url ?? process.env.WOO_URL!;
-      const finalCk = ck ?? process.env.WOO_CK!;
-      const finalCs = cs ?? process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const products = await getProducts(finalUrl, finalCk, finalCs, limit);
+      const products = await getProducts(url, ck, cs, args.limit);
       const html = formatProducts(products);
 
       return { content: [{ type: "text", text: html }] };
@@ -68,24 +68,22 @@ export function registerWooGetTools(server: McpServer) {
     handler: getProductsHandler as any
   };
 
-  // ==========================
   // GET PRODUCT BY ID
-  // ==========================
   const getProductByIdHandler = async (
-    { url, ck, cs, id }: WooGetProductByIdArgs
+    args: WooGetProductByIdArgs,
+    ctx?: ToolCtx
   ): Promise<MCPToolResponse> => {
     try {
-      const finalUrl = url ?? process.env.WOO_URL!;
-      const finalCk = ck ?? process.env.WOO_CK!;
-      const finalCs = cs ?? process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const pid = typeof id === "string" ? parseInt(id, 10) : id;
+      const pid =
+        typeof args.id === "string" ? parseInt(args.id, 10) : args.id;
 
       if (!pid || Number.isNaN(pid)) {
         return { content: [{ type: "text", text: "❌ Invalid product ID." }] };
       }
 
-      const product = await getProductById(finalUrl, finalCk, finalCs, pid);
+      const product = await getProductById(url, ck, cs, pid);
       const html = formatSingleProduct(product);
 
       return { content: [{ type: "text", text: html }] };
@@ -108,18 +106,15 @@ export function registerWooGetTools(server: McpServer) {
     handler: getProductByIdHandler as any
   };
 
-  // ==========================
   // GET PRODUCT BY SKU
-  // ==========================
   const getProductBySkuHandler = async (
-    { url, ck, cs, sku }: WooGetProductBySkuArgs
+    args: WooGetProductBySkuArgs,
+    ctx?: ToolCtx
   ): Promise<MCPToolResponse> => {
     try {
-      const finalUrl = url ?? process.env.WOO_URL!;
-      const finalCk = ck ?? process.env.WOO_CK!;
-      const finalCs = cs ?? process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const skuValue = typeof sku === "string" ? sku.trim() : "";
+      const skuValue = typeof args.sku === "string" ? args.sku.trim() : "";
 
       if (!skuValue) {
         return {
@@ -127,12 +122,7 @@ export function registerWooGetTools(server: McpServer) {
         };
       }
 
-      const products = await getProductBySku(
-        finalUrl,
-        finalCk,
-        finalCs,
-        skuValue
-      );
+      const products = await getProductBySku(url, ck, cs, skuValue);
 
       if (!Array.isArray(products) || products.length === 0) {
         return {
@@ -170,61 +160,57 @@ export function registerWooGetTools(server: McpServer) {
     handler: getProductBySkuHandler as any
   };
 
-  // ==========================
   // GET PRODUCTS BY NAME
-  // ==========================
   const getProductsByNameHandler = async (
-  { url, ck, cs, name, limit }: WooGetProductsByNameArgs
-): Promise<MCPToolResponse> => {
-  try {
-    const finalUrl = url ?? process.env.WOO_URL!;
-    const finalCk = ck ?? process.env.WOO_CK!;
-    const finalCs = cs ?? process.env.WOO_CS!;
+    args: WooGetProductsByNameArgs,
+    ctx?: ToolCtx
+  ): Promise<MCPToolResponse> => {
+    try {
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-    const searchTerm = (name ?? "").toString().trim();
+      const searchTerm = (args.name ?? "").toString().trim();
 
-    if (!searchTerm) {
-      return {
-        content: [
-          { type: "text", text: "❌ Missing product name to search." }
-        ]
-      };
-    }
+      if (!searchTerm) {
+        return {
+          content: [
+            { type: "text", text: "❌ Missing product name to search." }
+          ]
+        };
+      }
 
-    const products = await getProductByName(
-      finalUrl,
-      finalCk,
-      finalCs,
-      searchTerm,
-      limit                    // <- pass raw limit (string | number | undefined)
-    );
+      const products = await getProductByName(
+        url,
+        ck,
+        cs,
+        searchTerm,
+        args.limit
+      );
 
-    if (!Array.isArray(products) || products.length === 0) {
+      if (!Array.isArray(products) || products.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No products found matching "${searchTerm}".`
+            }
+          ]
+        };
+      }
+
+      const html = formatProducts(products);
+
+      return { content: [{ type: "text", text: html }] };
+    } catch (err: any) {
       return {
         content: [
           {
             type: "text",
-            text: `No products found matching "${searchTerm}".`
+            text: `❌ Error in getProductsByName: ${err.message}`
           }
         ]
       };
     }
-
-    const html = formatProducts(products);
-
-    return { content: [{ type: "text", text: html }] };
-  } catch (err: any) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `❌ Error in getProductsByName: ${err.message}`
-        }
-      ]
-    };
-  }
-};
-
+  };
 
   server.registerTool(
     "woo_get_products_by_name",
@@ -241,48 +227,44 @@ export function registerWooGetTools(server: McpServer) {
     handler: getProductsByNameHandler as any
   };
 
-  // ==========================
   // GET PRODUCTS BY CATEGORY
-  // ==========================
   const getProductsByCategoryHandler = async (
-  { url, ck, cs, categoryId, category, limit }: WooGetProductsByCategoryArgs
-): Promise<MCPToolResponse> => {
-  try {
-    const finalUrl = url ?? process.env.WOO_URL!;
-    const finalCk = ck ?? process.env.WOO_CK!;
-    const finalCs = cs ?? process.env.WOO_CS!;
+    args: WooGetProductsByCategoryArgs,
+    ctx?: ToolCtx
+  ): Promise<MCPToolResponse> => {
+    try {
+      const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-    const finalCategory = categoryId ?? category;
+      const finalCategory = args.categoryId ?? args.category;
 
-    if (!finalCategory) {
+      if (!finalCategory) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "❌ Error: categoryId or category (slug) is required"
+            }
+          ]
+        };
+      }
+
+      const products = await getProductsByCategory(
+        url,
+        ck,
+        cs,
+        finalCategory,
+        args.limit
+      );
+
+      const html = formatProducts(products);
+
+      return { content: [{ type: "text", text: html }] };
+    } catch (err: any) {
       return {
-        content: [
-          {
-            type: "text",
-            text: "❌ Error: categoryId or category (slug) is required"
-          }
-        ]
+        content: [{ type: "text", text: `❌ Error: ${err.message}` }]
       };
     }
-
-    const products = await getProductsByCategory(
-      finalUrl,
-      finalCk,
-      finalCs,
-      finalCategory,      // <- number | string | undefined
-      limit               // <- number | string | undefined
-    );
-
-    const html = formatProducts(products);
-
-    return { content: [{ type: "text", text: html }] };
-  } catch (err: any) {
-    return {
-      content: [{ type: "text", text: `❌ Error: ${err.message}` }]
-    };
-  }
-};
-
+  };
 
   server.registerTool(
     "woo_get_products_by_category",

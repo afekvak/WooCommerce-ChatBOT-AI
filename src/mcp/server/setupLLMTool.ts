@@ -1,11 +1,12 @@
 // src/mcp/server/setupLLMTool.ts
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
-import { handleUserMessage } from "../llm/router.js";
+// we no longer use handleUserMessage here
+import { askLLM } from "../llm/llm.js";
 
 export const registeredTools: any = {};
 
-// keep a simple explicit type for the tool input
+// simple explicit type for the tool input
 type LlmToolInput = {
   message: string;
 };
@@ -21,12 +22,15 @@ export function setupLLMTool(server: McpServer) {
     (server as any).tools = {};
   }
 
-  // Wrap only ONE TIME
+  // Wrap only ONE TIME so we mirror tools into server.tools + registeredTools
   if (!(server as any)._registerToolWrapped) {
     const original = server.registerTool.bind(server);
 
-    // note the cast to any here to avoid type issues
-    (server as any).registerTool = function (name: string, meta: any, handler: any) {
+    (server as any).registerTool = function (
+      name: string,
+      meta: any,
+      handler: any
+    ) {
       // mirror tool
       (server as any).tools[name] = { meta, handler };
       registeredTools[name] = { meta, handler };
@@ -37,24 +41,27 @@ export function setupLLMTool(server: McpServer) {
     (server as any)._registerToolWrapped = true;
   }
 
-  // Register LLM
+  // Register "llm" tool – used only when MCP clients call it directly,
+  // completely separate from the /chat endpoint.
   (server as any).registerTool(
     "llm",
     {
       title: "LLM Assistant",
-      description: "Routers · Rules · Intent Hybrid",
-      // important cast: stop TS from trying to derive a huge type
+      description: "Plain LLM chat without WooCommerce tools",
+      // important cast: keep the schema simple so TS does not explode
       inputSchema: llmInputSchema as any
     },
     // explicit, simple input type for the handler
     async (input: LlmToolInput) => {
-      const result = await handleUserMessage(input.message, server);
+      const completion = await askLLM(input.message);
+      const text =
+        completion.choices?.[0]?.message?.content || "(no content from LLM)";
 
       return {
         content: [
           {
             type: "text",
-            text: result.text
+            text
           }
         ]
       };

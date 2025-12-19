@@ -1,0 +1,6 @@
+open ai
+render (for testing)
+wp on amazon aws servers
+pgsql on amazon aws servers
+openrouter(used at the start but not used anymore)
+our chatbot website

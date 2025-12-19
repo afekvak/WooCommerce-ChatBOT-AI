@@ -12,6 +12,34 @@
   const TITLE =
     scriptEl?.getAttribute("data-title") || "WooCommerce Copilot Assistant";
 
+
+
+
+
+
+
+
+
+  const CLIENT_KEY = scriptEl?.getAttribute("data-client-key") || null;
+
+  // simple per browser session id for wizards
+  let SESSION_ID = localStorage.getItem("mcp_session_id");
+  if (!SESSION_ID) {
+    SESSION_ID = "sess_" + Math.random().toString(36).slice(2) + Date.now();
+    localStorage.setItem("mcp_session_id", SESSION_ID);
+  }
+
+
+
+
+
+
+
+
+
+
+
+
   document.addEventListener("DOMContentLoaded", function () {
     // ===============================
     //           STYLES
@@ -954,12 +982,22 @@
 
       showTyping();
 
+
+
+
+
       try {
         const res = await fetch(MCP_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({
+            message: msg,
+            clientKey: CLIENT_KEY   // ← IMPORTANT
+          }),
         });
+  
+
+
 
         hideTyping();
 

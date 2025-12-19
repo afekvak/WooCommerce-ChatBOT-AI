@@ -1,6 +1,0 @@
-to do next :
-
-add full CRUD tools ready
-add more extra tools like "what is the most selling product today"
-add middleware and database
-create our website + Woo plugin

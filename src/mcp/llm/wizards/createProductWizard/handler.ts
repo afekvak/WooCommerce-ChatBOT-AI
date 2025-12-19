@@ -4,10 +4,15 @@ import { getWizard, setWizard, clearWizard, WizardState } from "./state";
 import { createProduct } from "../../../../controllers/wooAddController";
 import { formatSingleProduct } from "../../../../utils/formatWoo";
 import { createWooClient } from "../../../../controllers/wooClient";
+
+// new: client context and shared Woo resolver
+import type { ToolCtx } from "../../../types";
+import { resolveWooCredentials } from "../../../tools/woo/wooCredentials.js";
+
 const WIZARD_DEBUG_JSON = process.env.WIZARD_DEBUG_JSON === "true";
 console.log("Wizard Debug:", WIZARD_DEBUG_JSON);
 
-// Unified result type for all parsers
+// unified result type for all parsers
 type ParseResult = {
   ok: boolean;
   value?: any;
@@ -15,18 +20,15 @@ type ParseResult = {
   skipped?: boolean;
 };
 
-// small helper type
 interface Question {
   key: string;
   prompt: string;
   required?: boolean;
-  // parse returns ok false when value is invalid and message should be repeated
   parse?: (answer: string) => ParseResult;
 }
 
 /* ================================
    BASIC QUESTIONS
-   These always run first
    ================================ */
 
 const BASIC_QUESTIONS: Question[] = [
@@ -38,7 +40,8 @@ const BASIC_QUESTIONS: Question[] = [
   },
   {
     key: "regular_price",
-    prompt: "Regular price (number, for example 199.99). Type skip to leave empty",
+    prompt:
+      "Regular price (number, for example 199.99). Type skip to leave empty",
     parse: optionalPrice
   },
   {
@@ -48,7 +51,8 @@ const BASIC_QUESTIONS: Question[] = [
   },
   {
     key: "description",
-    prompt: "Full description (you can paste text or type skip)",
+    prompt:
+      "Full description (you can paste text or type skip)",
     parse: optionalText
   },
   {
@@ -63,7 +67,8 @@ const BASIC_QUESTIONS: Question[] = [
   },
   {
     key: "manage_stock",
-    prompt: "Do you want WooCommerce to manage stock for this product? yes or no (default no, you can type skip)",
+    prompt:
+      "Do you want WooCommerce to manage stock for this product? yes or no (default no, you can type skip)",
     parse: optionalBoolean
   },
   {
@@ -73,24 +78,26 @@ const BASIC_QUESTIONS: Question[] = [
   },
   {
     key: "stock_status",
-    prompt: "Stock status. Type one: instock, outofstock, onbackorder. Or type skip",
+    prompt:
+      "Stock status. Type one: instock, outofstock, onbackorder. Or type skip",
     parse: optionalStockStatus
   },
   {
-  key: "categories",
-  prompt:
-    "Categories. Type existing category names separated by comma, for example: Shirts, Summer, Men. These categories must already exist in WooCommerce, I will try to match them. Or type skip",
-  parse: optionalNameListToTermArray
-},
-
+    key: "categories",
+    prompt:
+      "Categories. Type existing category names separated by comma, for example: Shirts, Summer, Men. These categories must already exist in WooCommerce, I will try to match them. Or type skip",
+    parse: optionalNameListToTermArray
+  },
   {
     key: "tags",
-    prompt: "Tags. You can type names separated by comma. Or type skip",
+    prompt:
+      "Tags. You can type names separated by comma. Or type skip",
     parse: optionalNameListToTermArray
   },
   {
     key: "meta_data",
-    prompt: "Do you want to add custom meta data now? Type key:value pairs separated by comma (for example: color:blue, brand:nike) or type skip",
+    prompt:
+      "Do you want to add custom meta data now? Type key:value pairs separated by comma (for example: color:blue, brand:nike) or type skip",
     parse: optionalMetaDataPairs
   }
 ];
@@ -127,7 +134,6 @@ const ADVANCED_SECTION_LABELS: Record<AdvancedSectionName, string> = {
   external: "External url and button text (usually used for external affiliate products)"
 };
 
-// questions per advanced section
 const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
   pricing: [
     {
@@ -137,7 +143,8 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
     },
     {
       key: "tax_class",
-      prompt: "Tax class (leave empty or type skip if you do not use custom tax classes)",
+      prompt:
+        "Tax class (leave empty or type skip if you do not use custom tax classes)",
       parse: optionalText
     }
   ],
@@ -154,7 +161,8 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
     },
     {
       key: "sold_individually",
-      prompt: "Sold individually (limit purchases to one item per order). Type yes, no or skip",
+      prompt:
+        "Sold individually (limit purchases to one item per order). Type yes, no or skip",
       parse: optionalBoolean
     }
   ],
@@ -200,7 +208,8 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
     },
     {
       key: "downloads",
-      prompt: "If you want to set downloads, type one or more items in this format: name|fileUrl separated by comma. Example: Manual|https://example.com/manual.pdf, Setup|https://example.com/setup.zip. Or type skip",
+      prompt:
+        "If you want to set downloads, type one or more items in this format: name|fileUrl separated by comma. Example: Manual|https://example.com/manual.pdf, Setup|https://example.com/setup.zip. Or type skip",
       parse: optionalDownloadsList
     },
     {
@@ -217,7 +226,8 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
   links: [
     {
       key: "upsell_ids",
-      prompt: "Upsell product ids separated by comma (for example: 12, 15) or type skip",
+      prompt:
+        "Upsell product ids separated by comma (for example: 12, 15) or type skip",
       parse: optionalIdList
     },
     {
@@ -239,7 +249,8 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
     },
     {
       key: "catalog_visibility",
-      prompt: "Catalog visibility. Type one: visible, catalog, search, hidden. Or type skip",
+      prompt:
+        "Catalog visibility. Type one: visible, catalog, search, hidden. Or type skip",
       parse: optionalCatalogVisibility
     }
   ],
@@ -251,31 +262,36 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
     },
     {
       key: "purchase_note",
-      prompt: "Purchase note that will appear after checkout, or type skip",
+      prompt:
+        "Purchase note that will appear after checkout, or type skip",
       parse: optionalText
     }
   ],
   menu: [
     {
       key: "menu_order",
-      prompt: "Menu order (integer, used for ordering products) or type skip",
+      prompt:
+        "Menu order (integer, used for ordering products) or type skip",
       parse: optionalInteger
     },
     {
       key: "parent_id",
-      prompt: "Parent product id for grouped products or type skip",
+      prompt:
+        "Parent product id for grouped products or type skip",
       parse: optionalInteger
     }
   ],
   external: [
     {
       key: "external_url",
-      prompt: "External url (for external or affiliate product) or type skip",
+      prompt:
+        "External url (for external or affiliate product) or type skip",
       parse: optionalText
     },
     {
       key: "button_text",
-      prompt: "Button text for external product (for example Buy on Amazon) or type skip",
+      prompt:
+        "Button text for external product (for example Buy on Amazon) or type skip",
       parse: optionalText
     }
   ]
@@ -288,7 +304,7 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
 export function startCreateProductWizard(sessionId: string): string {
   const state: WizardState = {
     mode: "create_product",
-    stage: "mode_choice",   // first ask: wizard or json
+    stage: "mode_choice",
     basicIndex: 0,
     advancedMode: "none",
     advancedSections: [],
@@ -314,7 +330,8 @@ export function startCreateProductWizard(sessionId: string): string {
 // called from llm/router when wizard is active
 export async function handleCreateProductWizardStep(
   sessionId: string,
-  message: string
+  message: string,
+  ctx?: ToolCtx
 ): Promise<{ reply: string; done: boolean }> {
   const state = getWizard(sessionId);
   if (!state) {
@@ -328,14 +345,12 @@ export async function handleCreateProductWizardStep(
     return { reply: "Product creation wizard cancelled.", done: true };
   }
 
-  // new first stage – choose between wizard and json
   if (state.stage === "mode_choice") {
     return handleModeChoice(sessionId, state, text);
   }
 
-  // JSON mode – user pastes a JSON payload for WooCommerce
   if (state.stage === "json") {
-    return handleJsonStage(sessionId, state, text);
+    return handleJsonStage(sessionId, state, text, ctx);
   }
 
   if (state.stage === "basic") {
@@ -351,10 +366,13 @@ export async function handleCreateProductWizardStep(
   }
 
   if (state.stage === "confirm") {
-    return handleConfirmStage(sessionId, state, text);
+    return handleConfirmStage(sessionId, state, text, ctx);
   }
 
-  return { reply: "Internal wizard state is invalid, cancelling wizard.", done: true };
+  return {
+    reply: "Internal wizard state is invalid, cancelling wizard.",
+    done: true
+  };
 }
 
 /* ================================
@@ -368,7 +386,6 @@ function handleModeChoice(
 ): { reply: string; done: boolean } {
   const t = answer.toLowerCase().trim();
 
-  // Guided wizard
   if (t === "wizard" || t === "help" || t === "guided") {
     state.stage = "basic";
     state.basicIndex = 0;
@@ -387,7 +404,6 @@ function handleModeChoice(
     };
   }
 
-  // JSON mode
   if (t === "json" || t === "payload" || t === "raw") {
     state.stage = "json";
     setWizard(sessionId, state);
@@ -409,9 +425,9 @@ function handleModeChoice(
     };
   }
 
-  // Invalid answer
   return {
-    reply: 'Please type "wizard" for guided mode or "json" to paste a JSON payload.',
+    reply:
+      'Please type "wizard" for guided mode or "json" to paste a JSON payload.',
     done: false
   };
 }
@@ -423,25 +439,24 @@ function handleModeChoice(
 async function handleJsonStage(
   sessionId: string,
   state: WizardState,
-  answer: string
+  answer: string,
+  ctx?: ToolCtx
 ): Promise<{ reply: string; done: boolean }> {
   const t = answer.trim();
   const lower = t.toLowerCase();
 
-  // Always respect cancel
   if (lower === "cancel") {
     clearWizard(sessionId);
     return { reply: "Product creation wizard cancelled.", done: true };
   }
 
-  // =========================================
-  // SECOND STEP: CONFIRMATION FOR JSON PAYLOAD
-  // =========================================
   const hasPendingJson =
     state.data && (state.data as any).__json_pending === true;
 
   if (hasPendingJson) {
-    const storedPayload = (state.data as any).__json_payload as any | undefined;
+    const storedPayload = (state.data as any).__json_payload as
+      | any
+      | undefined;
 
     if (!storedPayload || typeof storedPayload !== "object") {
       clearWizard(sessionId);
@@ -451,13 +466,11 @@ async function handleJsonStage(
       };
     }
 
-    // UI path: widget confirm with status
     const uiMatch = t.match(/^__JSON_CONFIRM__:(publish|draft)$/i);
     if (uiMatch) {
-      const chosenStatus = uiMatch[1].toLowerCase(); // "publish" | "draft"
+      const chosenStatus = uiMatch[1].toLowerCase();
       storedPayload.status = chosenStatus;
     } else if (lower === "publish" || lower === "draft") {
-      // typed status – also accepted
       storedPayload.status = lower;
     } else if (lower === "no") {
       clearWizard(sessionId);
@@ -466,10 +479,8 @@ async function handleJsonStage(
         done: true
       };
     } else if (lower === "confirm" || lower === "yes") {
-      // user wants to use the status already inside the JSON (if any)
-      // nothing extra to do
+      // use status from JSON as is
     } else {
-      // any other text while waiting for confirm
       return {
         reply:
           "To finish creating this product from JSON, type:\n" +
@@ -481,27 +492,23 @@ async function handleJsonStage(
       };
     }
 
-    // ---------- actually create from storedPayload ----------
     try {
-      const url = process.env.WOO_URL!;
-      const ck = process.env.WOO_CK!;
-      const cs = process.env.WOO_CS!;
+      const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
       const created = await createProduct(url, ck, cs, storedPayload);
       clearWizard(sessionId);
 
       const html = formatSingleProduct(created);
 
-      // base reply
-      let reply = "Product created successfully from JSON payload.\n\n" + html;
+      let reply =
+        "Product created successfully from JSON payload.\n\n" + html;
 
-      // optional debug payload block, controlled by WIZARD_DEBUG_JSON
       if (WIZARD_DEBUG_JSON) {
         const debugJson = JSON.stringify(storedPayload, null, 2);
         reply +=
           "\n\n" +
           `<details class="details">
-  <summary>Debug: JSON payload sent to WooCommerce</summary>
+  <summary>Debug (session ${sessionId}): JSON payload sent to WooCommerce</summary>
   <pre class="code">${escapeHtml(debugJson)}</pre>
 </details>`;
       }
@@ -519,17 +526,14 @@ async function handleJsonStage(
     }
   }
 
-    // =========================================
-  // FIRST STEP: PARSE JSON AND SHOW PREVIEW
-  // =========================================
-
-  // Try to parse JSON
   let payload: any;
   try {
     payload = JSON.parse(t);
   } catch (err: any) {
     return {
-      reply: `This is not valid JSON: ${err.message}\n\nPlease paste a valid JSON object or type cancel.`,
+      reply:
+        `This is not valid JSON: ${err.message}\n\n` +
+        "Please paste a valid JSON object or type cancel.",
       done: false
     };
   }
@@ -544,7 +548,8 @@ async function handleJsonStage(
 
   if (!payload.name || typeof payload.name !== "string") {
     return {
-      reply: 'The JSON must include a product name: "name": "Your product name".',
+      reply:
+        'The JSON must include a product name: "name": "Your product name".',
       done: false
     };
   }
@@ -553,7 +558,6 @@ async function handleJsonStage(
     payload.type = "simple";
   }
 
-  // Store JSON payload into state so we can confirm later
   if (!state.data) {
     state.data = {};
   }
@@ -561,22 +565,16 @@ async function handleJsonStage(
   (state.data as any).__json_payload = payload;
   setWizard(sessionId, state);
 
-  // Build human friendly summary text (this is the message you see in chat)
   const lines: string[] = [];
   lines.push("Here is the product parsed from your JSON payload.");
   lines.push("");
-  // lines.push(`Name: ${payload.name ?? "(missing)"}`);
-  // lines.push(`Type: ${payload.type ?? "simple"}`);
-  // lines.push(`Regular price: ${payload.regular_price ?? "(none)"}`);
-  // lines.push(`Sale price: ${payload.sale_price ?? "(none)"}`);
-  // lines.push(`Status: ${payload.status ?? "(none)"}`);
-  // lines.push(`SKU: ${payload.sku ?? "(none)"}`);
-  // lines.push(
-  //   `Stock quantity: ${
-  //     payload.stock_quantity !== undefined ? payload.stock_quantity : "(none)"
-  //   }`
-  // );
-  // lines.push(`Stock status: ${payload.stock_status ?? "(none)"}`);
+  lines.push(
+    "Click confirm to create this product from JSON, or choose publish/draft for status.\n" +
+      "You can also click cancel to abort."
+  );
+  lines.push("");
+
+  const humanText = lines.join("\n");
 
   const catSummary =
     Array.isArray(payload.categories) && payload.categories.length
@@ -594,17 +592,6 @@ async function handleJsonStage(
           .join(", ")
       : "(none)";
 
-  // lines.push(`Categories: ${catSummary}`);
-  // lines.push(`Tags: ${tagSummary}`);
-  // lines.push("");
-  lines.push(
-    "Click confirm to create this product from JSON, or choose publish/draft for status.\n" +
-      "You can also click cancel to abort."
-  );
-  lines.push("");
-
-  const humanText = lines.join("\n");
-
   const dimSummaryJson =
     [
       payload.dimensions?.length,
@@ -614,13 +601,13 @@ async function handleJsonStage(
       .filter(Boolean)
       .join(" x ") || null;
 
-  // META for confirmation window
   const meta = {
     type: "wizard_confirm",
     wizard: "create_product",
     action: "create_from_json",
     productName: payload.name ?? null,
-    description: humanText, // <── this is what the popup will show as the long message
+    description: humanText,
+    sessionId,
     summary: {
       regular_price: payload.regular_price ?? null,
       sale_price: payload.sale_price ?? null,
@@ -665,8 +652,6 @@ async function handleJsonStage(
   };
 }
 
-
-
 /* ================================
    BASIC STAGE
    ================================ */
@@ -683,7 +668,10 @@ function handleBasicStage(
   const result = parse(answer);
 
   if (!result.ok && !result.skipped) {
-    return { reply: result.error ?? "Please enter a valid value.", done: false };
+    return {
+      reply: result.error ?? "Please enter a valid value.",
+      done: false
+    };
   }
 
   if (!result.skipped) {
@@ -693,7 +681,6 @@ function handleBasicStage(
   state.basicIndex += 1;
 
   if (state.basicIndex >= BASIC_QUESTIONS.length) {
-    // finished basic, go to ask advanced
     state.stage = "ask_advanced";
     setWizard(sessionId, state);
 
@@ -733,7 +720,7 @@ function handleAskAdvancedStage(
     state.stage = "confirm";
     setWizard(sessionId, state);
     return {
-      reply: buildConfirmationSummary(state),
+      reply: buildConfirmationSummary(sessionId, state),
       done: false
     };
   }
@@ -764,7 +751,6 @@ function handleAskAdvancedStage(
     state.currentSectionIndex = 0;
     state.currentFieldIndex = 0;
 
-    // we now ask user which sections to enable
     setWizard(sessionId, state);
 
     const available = ADVANCED_SECTIONS_ORDER
@@ -798,8 +784,6 @@ function handleAdvancedStage(
   state: WizardState,
   answer: string
 ): { reply: string; done: boolean } {
-  // when advancedMode is sections and advancedSections is empty
-  // we interpret the first answer as section selection
   if (state.advancedMode === "sections" && state.advancedSections.length === 0) {
     const selected = parseAdvancedSections(answer);
     if (!selected.length) {
@@ -816,8 +800,9 @@ function handleAdvancedStage(
     state.currentFieldIndex = 0;
     setWizard(sessionId, state);
   } else {
-    // we are inside a section field
-    const sectionName = state.advancedSections[state.currentSectionIndex] as AdvancedSectionName;
+    const sectionName = state.advancedSections[
+      state.currentSectionIndex
+    ] as AdvancedSectionName;
     const questions = ADVANCED_QUESTIONS[sectionName];
 
     const q = questions[state.currentFieldIndex];
@@ -825,7 +810,10 @@ function handleAdvancedStage(
     const result = parse(answer);
 
     if (!result.ok && !result.skipped) {
-      return { reply: result.error ?? "Please enter a valid value.", done: false };
+      return {
+        reply: result.error ?? "Please enter a valid value.",
+        done: false
+      };
     }
 
     if (!result.skipped) {
@@ -835,23 +823,22 @@ function handleAdvancedStage(
     state.currentFieldIndex += 1;
 
     if (state.currentFieldIndex >= questions.length) {
-      // section done, move to next
       state.currentSectionIndex += 1;
       state.currentFieldIndex = 0;
     }
 
-    // if we finished all sections
     if (state.currentSectionIndex >= state.advancedSections.length) {
       state.stage = "confirm";
       setWizard(sessionId, state);
-      return { reply: buildConfirmationSummary(state), done: false };
+      return { reply: buildConfirmationSummary(sessionId, state), done: false };
     }
 
     setWizard(sessionId, state);
   }
 
-  // ask next question
-  const currentSection = state.advancedSections[state.currentSectionIndex] as AdvancedSectionName;
+  const currentSection = state.advancedSections[
+    state.currentSectionIndex
+  ] as AdvancedSectionName;
   const questions = ADVANCED_QUESTIONS[currentSection];
   const q = questions[state.currentFieldIndex];
 
@@ -865,15 +852,16 @@ function handleAdvancedStage(
    CONFIRM STAGE
    ================================ */
 
-async function createProductFromState(state: WizardState): Promise<{ created: any; payload: any }> {
-  const url = process.env.WOO_URL!;
-  const ck = process.env.WOO_CK!;
-  const cs = process.env.WOO_CS!;
+async function createProductFromState(
+  state: WizardState,
+  ctx?: ToolCtx
+): Promise<{ created: any; payload: any }> {
+  const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
   const payload: any = {
     type: "simple",
     name: state.data.name,
-    status: state.data.status, // publish or draft if you added that
+    status: state.data.status,
     regular_price: toStringIfDefined(state.data.regular_price),
     sale_price: toStringIfDefined(state.data.sale_price),
     description: state.data.description,
@@ -882,7 +870,7 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
     manage_stock: state.data.manage_stock,
     stock_quantity: state.data.stock_quantity,
     stock_status: state.data.stock_status,
-    categories: state.data.categories,  // will be overridden by resolver if you use it
+    categories: state.data.categories,
     tags: state.data.tags,
     meta_data: state.data.meta_data,
     tax_status: state.data.tax_status,
@@ -915,8 +903,6 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
     button_text: state.data.button_text
   };
 
-
-  // ---------- RESOLVE CATEGORIES / TAGS BY NAME ----------
   const hasCategories =
     Array.isArray(state.data.categories) && state.data.categories.length > 0;
   const hasTags =
@@ -932,7 +918,6 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
         const name = term?.name;
         if (!name) continue;
 
-        // search existing product categories by name
         const resp = await api.get("products/categories", {
           per_page: 50,
           search: name
@@ -955,7 +940,6 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
         const name = term?.name;
         if (!name) continue;
 
-        // search existing product tags by name
         const resp = await api.get("products/tags", {
           per_page: 50,
           search: name
@@ -971,9 +955,7 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
       }
     }
   }
-  // ---------- RESOLVE END ----------
 
-  // remove undefined so we do not send junk
   Object.keys(payload).forEach((k) => {
     if (payload[k] === undefined) {
       delete payload[k];
@@ -984,12 +966,16 @@ async function createProductFromState(state: WizardState): Promise<{ created: an
   return { created, payload };
 }
 
-
-function buildConfirmationSummary(state: WizardState): string {
+function buildConfirmationSummary(
+  sessionId: string,
+  state: WizardState
+): string {
   const d = state.data;
 
   const lines: string[] = [];
-  lines.push("Here is the product summary. If this looks correct, Click confirm.");
+  lines.push(
+    "Here is the product summary. If this looks correct, Click confirm."
+  );
   lines.push("If you want to cancel, type cancel.");
   lines.push("");
 
@@ -1046,7 +1032,8 @@ function buildConfirmationSummary(state: WizardState): string {
     wizard: "create_product",
     action: "create",
     productName: d.name ?? null,
-    description: humanText, // <── full summary for the popup
+    description: humanText,
+    sessionId,
     summary: {
       regular_price: d.regular_price ?? null,
       sale_price: d.sale_price ?? null,
@@ -1088,9 +1075,6 @@ function buildConfirmationSummary(state: WizardState): string {
   return reply;
 }
 
-
-
-
 function stringOrDash(v: any): string {
   if (v === undefined || v === null || v === "") return "—";
   return String(v);
@@ -1111,37 +1095,32 @@ function toStringIfDefined(v: any): string | undefined {
 async function handleConfirmStage(
   sessionId: string,
   state: WizardState,
-  answer: string
+  answer: string,
+  ctx?: ToolCtx
 ): Promise<{ reply: string; done: boolean }> {
   const raw = answer.trim();
   const t = raw.toLowerCase();
 
-  // =========================================
-  // 0. SPECIAL UI PATH: "__WIZ_CONFIRM__:publish" or "__WIZ_CONFIRM__:draft"
-  //    - Sent by the confirmation window so the user does not need to type
-  // =========================================
   const uiMatch = raw.match(/^__WIZ_CONFIRM__:(publish|draft)$/i);
   if (uiMatch) {
-    const chosenStatus = uiMatch[1].toLowerCase(); // "publish" | "draft"
+    const chosenStatus = uiMatch[1].toLowerCase();
     state.data.status = chosenStatus;
     setWizard(sessionId, state);
 
     try {
-      const { created, payload } = await createProductFromState(state);
+      const { created, payload } = await createProductFromState(state, ctx);
       clearWizard(sessionId);
 
       const html = formatSingleProduct(created);
 
-      // base reply
       let reply = "Product created successfully.\n\n" + html;
 
-      // optional debug payload block, controlled by .env
       if (WIZARD_DEBUG_JSON) {
         const debugJson = JSON.stringify(payload, null, 2);
         reply +=
           "\n\n" +
           `<details class="details">
-  <summary>Debug: JSON payload sent to WooCommerce</summary>
+  <summary>Debug (session ${sessionId}): JSON payload sent to WooCommerce</summary>
   <pre class="code">${escapeHtml(debugJson)}</pre>
 </details>`;
       }
@@ -1159,11 +1138,6 @@ async function handleConfirmStage(
     }
   }
 
-  // =========================================
-  // 1. ORIGINAL TYPED FLOW (BACKWARD COMPATIBLE)
-  // =========================================
-
-  // user chooses status
   if (t === "publish" || t === "published") {
     state.data.status = "publish";
     setWizard(sessionId, state);
@@ -1186,9 +1160,7 @@ async function handleConfirmStage(
     };
   }
 
-  // user confirms creation
   if (t === "confirm" || t === "yes") {
-    // make sure status is chosen first
     if (!state.data.status) {
       return {
         reply:
@@ -1199,21 +1171,19 @@ async function handleConfirmStage(
     }
 
     try {
-      const { created, payload } = await createProductFromState(state);
+      const { created, payload } = await createProductFromState(state, ctx);
       clearWizard(sessionId);
 
       const html = formatSingleProduct(created);
 
-      // base reply
       let reply = "Product created successfully.\n\n" + html;
 
-      // optional debug payload block, controlled by .env
       if (WIZARD_DEBUG_JSON) {
         const debugJson = JSON.stringify(payload, null, 2);
         reply +=
           "\n\n" +
           `<details class="details">
-  <summary>Debug: JSON payload sent to WooCommerce</summary>
+  <summary>Debug (session ${sessionId}): JSON payload sent to WooCommerce</summary>
   <pre class="code">${escapeHtml(debugJson)}</pre>
 </details>`;
       }
@@ -1231,13 +1201,11 @@ async function handleConfirmStage(
     }
   }
 
-  // user cancels
   if (t === "cancel" || t === "no") {
     clearWizard(sessionId);
     return { reply: "Product creation wizard cancelled.", done: true };
   }
 
-  // any other text while in confirm stage
   return {
     reply:
       "To finish, type one of the following:\n" +
@@ -1249,15 +1217,18 @@ async function handleConfirmStage(
   };
 }
 
-
-
 /* ================================
    PARSERS AND HELPERS
    ================================ */
 
 function nonEmptyString(answer: string): ParseResult {
   const v = answer.trim();
-  if (!v) return { ok: false, error: "This field is required. Please enter a value." };
+  if (!v) {
+    return {
+      ok: false,
+      error: "This field is required. Please enter a value."
+    };
+  }
   return { ok: true, value: v };
 }
 
@@ -1276,7 +1247,10 @@ function optionalPrice(answer: string): ParseResult {
   }
   const n = Number(t);
   if (Number.isNaN(n) || n < 0) {
-    return { ok: false, error: "Please type a valid positive number or skip." };
+    return {
+      ok: false,
+      error: "Please type a valid positive number or skip."
+    };
   }
   return { ok: true, value: n.toFixed(2) };
 }
@@ -1288,7 +1262,10 @@ function optionalInteger(answer: string): ParseResult {
   }
   const n = Number(t);
   if (!Number.isInteger(n)) {
-    return { ok: false, error: "Please type a valid integer or skip." };
+    return {
+      ok: false,
+      error: "Please type a valid integer or skip."
+    };
   }
   return { ok: true, value: n };
 }
@@ -1296,9 +1273,16 @@ function optionalInteger(answer: string): ParseResult {
 function optionalBoolean(answer: string): ParseResult {
   const t = answer.trim().toLowerCase();
   if (t === "skip" || t === "") return { ok: true, skipped: true };
-  if (t === "yes" || t === "y" || t === "true") return { ok: true, value: true };
-  if (t === "no" || t === "n" || t === "false") return { ok: true, value: false };
-  return { ok: false, error: "Please type yes, no, or skip." };
+  if (t === "yes" || t === "y" || t === "true") {
+    return { ok: true, value: true };
+  }
+  if (t === "no" || t === "n" || t === "false") {
+    return { ok: true, value: false };
+  }
+  return {
+    ok: false,
+    error: "Please type yes, no, or skip."
+  };
 }
 
 function optionalStockStatus(answer: string): ParseResult {
@@ -1307,7 +1291,11 @@ function optionalStockStatus(answer: string): ParseResult {
   if (t === "instock" || t === "outofstock" || t === "onbackorder") {
     return { ok: true, value: t };
   }
-  return { ok: false, error: "Please type one of: instock, outofstock, onbackorder, or skip." };
+  return {
+    ok: false,
+    error:
+      "Please type one of: instock, outofstock, onbackorder, or skip."
+  };
 }
 
 function optionalTaxStatus(answer: string): ParseResult {
@@ -1316,7 +1304,10 @@ function optionalTaxStatus(answer: string): ParseResult {
   if (t === "taxable" || t === "shipping" || t === "none") {
     return { ok: true, value: t };
   }
-  return { ok: false, error: "Please type one of: taxable, shipping, none, or skip." };
+  return {
+    ok: false,
+    error: "Please type one of: taxable, shipping, none, or skip."
+  };
 }
 
 function optionalBackorders(answer: string): ParseResult {
@@ -1325,16 +1316,28 @@ function optionalBackorders(answer: string): ParseResult {
   if (t === "no" || t === "notify" || t === "yes") {
     return { ok: true, value: t };
   }
-  return { ok: false, error: "Please type one of: no, notify, yes, or skip." };
+  return {
+    ok: false,
+    error: "Please type one of: no, notify, yes, or skip."
+  };
 }
 
 function optionalCatalogVisibility(answer: string): ParseResult {
   const t = answer.trim().toLowerCase();
   if (t === "skip" || t === "") return { ok: true, skipped: true };
-  if (t === "visible" || t === "catalog" || t === "search" || t === "hidden") {
+  if (
+    t === "visible" ||
+    t === "catalog" ||
+    t === "search" ||
+    t === "hidden"
+  ) {
     return { ok: true, value: t };
   }
-  return { ok: false, error: "Please type one of: visible, catalog, search, hidden, or skip." };
+  return {
+    ok: false,
+    error:
+      "Please type one of: visible, catalog, search, hidden, or skip."
+  };
 }
 
 function optionalNameListToTermArray(answer: string): ParseResult {
@@ -1348,7 +1351,11 @@ function optionalNameListToTermArray(answer: string): ParseResult {
     .map((p) => p.trim())
     .filter(Boolean);
   if (!parts.length) {
-    return { ok: false, error: "Please type one or more names separated by comma, or skip." };
+    return {
+      ok: false,
+      error:
+        "Please type one or more names separated by comma, or skip."
+    };
   }
 
   const terms = parts.map((name) => ({ name }));
@@ -1366,7 +1373,11 @@ function optionalMetaDataPairs(answer: string): ParseResult {
     .map((p) => p.trim())
     .filter(Boolean);
   if (!pairs.length) {
-    return { ok: false, error: "Please type key:value pairs separated by comma, or skip." };
+    return {
+      ok: false,
+      error:
+        "Please type key:value pairs separated by comma, or skip."
+    };
   }
 
   const meta: { key: string; value: string }[] = [];
@@ -1375,7 +1386,8 @@ function optionalMetaDataPairs(answer: string): ParseResult {
     if (!k || v === undefined) {
       return {
         ok: false,
-        error: "Each meta pair must look like key:value. Example: color:blue, brand:nike"
+        error:
+          "Each meta pair must look like key:value. Example: color:blue, brand:nike"
       };
     }
     meta.push({ key: k, value: v });
@@ -1395,7 +1407,11 @@ function optionalDownloadsList(answer: string): ParseResult {
     .map((p) => p.trim())
     .filter(Boolean);
   if (!items.length) {
-    return { ok: false, error: "Please enter at least one download in format name|url or type skip." };
+    return {
+      ok: false,
+      error:
+        "Please enter at least one download in format name|url or type skip."
+    };
   }
 
   const downloads: { name: string; file: string }[] = [];
@@ -1404,7 +1420,8 @@ function optionalDownloadsList(answer: string): ParseResult {
     if (!name || !file) {
       return {
         ok: false,
-        error: "Each download must look like name|url. Example: Manual|https://example.com/file.pdf"
+        error:
+          "Each download must look like name|url. Example: Manual|https://example.com/file.pdf"
       };
     }
     downloads.push({ name, file });
@@ -1424,14 +1441,22 @@ function optionalIdList(answer: string): ParseResult {
     .map((p) => p.trim())
     .filter(Boolean);
   if (!items.length) {
-    return { ok: false, error: "Please type one or more ids separated by comma, or skip." };
+    return {
+      ok: false,
+      error:
+        "Please type one or more ids separated by comma, or skip."
+    };
   }
 
   const ids: number[] = [];
   for (const it of items) {
     const n = Number(it);
     if (!Number.isInteger(n) || n <= 0) {
-      return { ok: false, error: "Each id must be a positive integer, or type skip." };
+      return {
+        ok: false,
+        error:
+          "Each id must be a positive integer, or type skip."
+      };
     }
     ids.push(n);
   }
@@ -1470,8 +1495,11 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-
-function applyAdvancedFieldToData(data: Record<string, any>, key: string, value: any): void {
+function applyAdvancedFieldToData(
+  data: Record<string, any>,
+  key: string,
+  value: any
+): void {
   if (value === undefined) return;
 
   if (key.startsWith("dimensions_")) {

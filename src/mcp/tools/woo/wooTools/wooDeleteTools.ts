@@ -18,6 +18,12 @@ import {
   
 } from "../../../../utils/formatWoo";
 
+import {
+  resolveWooCredentials,
+} from "../wooCredentials.js";
+
+import type { ToolCtx } from "../../../types";
+
 export function registerWooDeleteTools(server: McpServer) {
   // no add tools yet
 }

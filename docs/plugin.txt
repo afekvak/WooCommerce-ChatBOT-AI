@@ -1,0 +1,6 @@
+zip plugin-build
+upload into wp
+plugins -> add plugin -> upload plugin
+
+
+on publish we change baseURL to the real adderss

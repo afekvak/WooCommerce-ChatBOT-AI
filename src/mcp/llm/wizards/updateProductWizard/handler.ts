@@ -1,9 +1,23 @@
 // src/mcp/llm/updateproductwizard/handler.ts
 
-import { getUpdateWizard, setUpdateWizard, clearUpdateWizard, UpdateProductWizardState } from "./state";
-import { getProductById,getProductBySku } from "../../../../controllers/wooGetController";
+import {
+  getUpdateWizard,
+  setUpdateWizard,
+  clearUpdateWizard,
+  UpdateProductWizardState
+} from "./state";
+
+import {
+  getProductById,
+  getProductBySku
+} from "../../../../controllers/wooGetController";
+
 import { updateProduct } from "../../../../controllers/wooUpdateController";
 import { formatSingleProduct } from "../../../../utils/formatWoo";
+
+// NEW: bring in ToolCtx and shared Woo credential resolver
+import type { ToolCtx } from "../../../types";
+import { resolveWooCredentials } from "../../../tools/woo/wooCredentials.js";
 
 type StepResult = { reply: string; done: boolean };
 
@@ -25,17 +39,13 @@ const ALLOWED_UPDATE_FIELDS = [
 // PUBLIC API
 // ================================
 
-// ================================
-// PUBLIC API
-// ================================
-
 export async function startUpdateProductWizard(
   sessionId: string,
-  target: { id?: number; sku?: string }
+  target: { id?: number; sku?: string },
+  ctx?: ToolCtx
 ): Promise<StepResult> {
-  const url = process.env.WOO_URL!;
-  const ck = process.env.WOO_CK!;
-  const cs = process.env.WOO_CS!;
+  // IMPORTANT: use client / env credentials, not hard-coded env only
+  const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
   let productId: number | undefined = target.id;
   let original: any | null = null;
@@ -119,10 +129,10 @@ export async function startUpdateProductWizard(
   };
 }
 
-
 export async function handleUpdateProductWizardStep(
   sessionId: string,
-  message: string
+  message: string,
+  ctx?: ToolCtx
 ): Promise<StepResult> {
   const state = getUpdateWizard(sessionId);
   if (!state) {
@@ -146,7 +156,7 @@ export async function handleUpdateProductWizardStep(
   }
 
   if (state.stage === "confirm") {
-    return handleConfirmStage(sessionId, state, text);
+    return handleConfirmStage(sessionId, state, text, ctx);
   }
 
   clearUpdateWizard(sessionId);
@@ -356,9 +366,9 @@ function buildConfirmationSummary(state: UpdateProductWizardState): string {
     action: "update",
     productId,
     productName,
-    description,   // <<< NEW: this will be shown inside the modal
-    summary,       // rows for the modal
-    changes        // extra data if you ever need it
+    description,
+    summary,
+    changes
   };
 
   lines.push("");
@@ -369,13 +379,11 @@ function buildConfirmationSummary(state: UpdateProductWizardState): string {
   return lines.join("\n");
 }
 
-
-
-
 async function handleConfirmStage(
   sessionId: string,
   state: UpdateProductWizardState,
-  answer: string
+  answer: string,
+  ctx?: ToolCtx
 ): Promise<StepResult> {
   const t = answer.toLowerCase().trim();
 
@@ -411,18 +419,15 @@ async function handleConfirmStage(
   }
 
   try {
-    const url = process.env.WOO_URL!;
-    const ck = process.env.WOO_CK!;
-    const cs = process.env.WOO_CS!;
+    // IMPORTANT: again, use client-aware credentials
+    const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
     const updated = await updateProduct(url, ck, cs, productId, payload);
     clearUpdateWizard(sessionId);
 
     const html = formatSingleProduct(updated);
-    const summary = buildConfirmationSummary(state);
 
-    const reply =
-      "✅ Product updated successfully.\n\n"  + html;
+    const reply = "✅ Product updated successfully.\n\n" + html;
 
     return { reply, done: true };
   } catch (err: any) {

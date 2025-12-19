@@ -3,6 +3,7 @@ import express from "express";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; 
 import cors, { CorsOptions, CorsRequest } from "cors"; 
 import { createAppRouter } from "./routes/appRouter.js"; 
+// import { jwtAuth } from "./middleware/jwtAuth.js"; // test
 
 //  createApp - builds the express app and returns it to server.ts
 export function createApp(server: McpServer) {
@@ -15,6 +16,7 @@ export function createApp(server: McpServer) {
     "http://127.0.0.1:5500",     // Live Server extension
     "https://your-domain.com",  
     "http://127.0.0.1:5501", // production
+    "http://44.193.148.170",
   ];
 
   //  CORS middleware configuration
@@ -41,6 +43,8 @@ export function createApp(server: McpServer) {
   app.disable("x-powered-by"); // hide express header
   app.use(express.json()); // parse JSON bodies
   app.use(express.static("public")); // serve static files (like widget.js)
+
+  // app.use(jwtAuth);// test 
   //  Express setup END
 
   //  Mount the main router (all routes from appRouter.ts)
