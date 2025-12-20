@@ -1,340 +1,440 @@
-# PROJECT STRUCTURE DOCUMENTATION  
-This document explains the purpose of every folder and file in the WooCommerce MCP Server project.  
-Use it as a reference when adding new tools, editing LLM logic, or updating the widget and wizards.
+PROJECT STRUCTURE DOCUMENTATION
+WooCommerce MCP Server / WooCommerce ChatBOT AI
+
+This document explains the purpose of the main folders and files in the project.
+Use it as a reference when working on tools, LLM logic, the widget, and the WordPress plugin.
+
+==================================================
+ROOT LEVEL
+==================================================
+
+README.md
+  High level overview of the project, how to run the server, and what the assistant does.
+
+package.json
+  Node package manifest.
+  Defines scripts such as build and dev and lists all dependencies and devDependencies.
+
+tsconfig.json
+  TypeScript configuration for compiling the project.
+
+.env (not committed, created locally)
+  Environment configuration file.
+  Typical keys:
+    OPENAI_API_KEY
+    PORT
+    JWT_SECRET (for future encrypted keys)
+    WOO_URL (default WooCommerce store url)
+    WOO_CK  (default WooCommerce consumer key)
+    WOO_CS  (default WooCommerce consumer secret)
+
+docs/
+  Documentation and notes for the project.
+  Can include architecture diagrams, API notes, and design decisions.
+
+postman/
+  Collection and environment files for testing HTTP endpoints with Postman.
+  Useful for testing /chat, health checks, and any future admin API.
+
+plugin-build/
+  Contains the built WordPress plugin that injects the widget into the WordPress admin.
+
+  plugin-build/woo-mcp-assistant.php
+    Main plugin file for WordPress.
+    Adds an admin menu page called Woo MCP Assistant.
+    Stores a client key in the wp_options table.
+    Injects a script tag with widget.js into the admin footer when a client key is configured.
+    The script tag points to the MCP server and passes:
+      data-server      url of the /chat endpoint
+      data-client-key  client key that identifies the tenant in the MCP database
+
+public/
+  Static assets that are served directly by Express.
+
+  public/widget.html
+    Standalone test page for the frontend chat widget.
+    Useful for testing the widget without using WordPress.
+
+  public/widget.js
+    Floating chatbot widget injected into the site or WordPress admin.
+    Responsible for:
+      Rendering the chat user interface and open or close animation
+      Reading data attributes such as data-server, data-client-key, data-title, data-theme
+      Sending user messages to POST /chat
+      Rendering HTML responses from the server
+      Displaying the debug block when present
+      Saving chat history in local storage
+      Showing a typing indicator
+      Supporting wide mode layout
+      Handling wizard confirmation meta blocks and opening confirmation modals
+
+==================================================
+SRC ROOT
+==================================================
+
+src/app.ts
+  Creates and configures the Express application.
+  Sets up JSON body parsing, CORS handling, and attaches the main router.
+  Does not start listening on a port.
+
+src/server.ts
+  Main backend entry point.
+  Creates the MCP server instance.
+  Registers all tools and wizards.
+  Attaches the MCP server to Express.
+  Starts the HTTP server and listens on the configured PORT.
+
+src/types.ts (or src/mcp/types.ts depending on location)
+  Shared TypeScript types used across the MCP and routing layers.
+  Examples:
+    BotReply      shape of the object returned from handleUserMessage
+    MCPToolResponse
+    ClientContext
+    ToolCtx
+
+==================================================
+DATABASE LAYER
+==================================================
+
+db/
+  Database connection utilities and tests.
+
+  db/pool.ts
+    Creates and exports a PostgreSQL connection pool.
+    Central place where the database connection string is configured.
+    Used by other modules that need to talk to the database, for example client storage.
+
+  db/testdb.ts
+    Simple script to test the PostgreSQL connection.
+    Connects to the pool, performs a simple query, and logs the result.
+    Used to verify that database credentials are correct.
+
+==================================================
+MIDDLEWARE LAYER
+==================================================
+
+src/middleware/
+  Reusable Express middleware modules.
+
+  src/middleware/resolveClient.ts
+    Reads the client key coming from each request.
+    The client key is provided by the widget through header or body.
+    Looks up the client in the database using the key.
+    Attaches a ClientContext object to the request, containing:
+      client id
+      client name
+      client key
+      WooCommerce url and keys for that client
+    This context is then passed into the MCP LLM router so tools know which tenant to use.
+
+  src/middleware/jwtAuth.ts
+    Authentication helper based on JSON Web Tokens.
+    Designed to decrypt or unwrap WooCommerce credentials stored in the database.
+    In the current phase it prepares the structure for future encrypted storage.
+
+  src/middleware/cors.ts
+    Central CORS configuration.
+    Will be used to move CORS setup out of app.ts.
+    Exports a function or middleware instance that sets allowed origins, headers, and methods.
+
+==================================================
+CONTROLLERS
+==================================================
+
+src/controllers/
+  Low level WooCommerce REST operations and helper clients.
+  These functions do not know about the LLM or chat, only about calling the WooCommerce API.
+
+  src/controllers/wooClient.ts
+    Factory that creates a WooCommerce REST API client for a given url and keys.
+    Wraps axios or a dedicated WooCommerce client.
+    Used by controllers that need to perform GET, POST, PUT, or DELETE on WooCommerce endpoints.
+
+  src/controllers/wooAddController.ts
+    Operations for creating new products in WooCommerce.
+    Exposes createProduct, which takes url, ck, cs, and a product payload.
+    Returns the raw WooCommerce product object.
+
+  src/controllers/wooGetController.ts
+    Operations for reading products and related data.
+    Functions include:
+      getProducts
+      getProductById
+      getProductBySku
+      getProductByName
+      getProductsByCategory
+    All functions call WooCommerce and return the fetched JSON.
+
+  src/controllers/wooUpdateController.ts
+    Operations for updating existing products.
+    Functions include:
+      updateProduct        update by numeric id
+      updateProductBySku   resolve product by sku and then update by id
+
+  src/controllers/wooDeleteController.ts
+    Operations for deleting products from WooCommerce.
+    Can support soft delete or force delete depending on flags.
+
+==================================================
+MCP CORE
+==================================================
+
+src/mcp/
+  Contains the MCP server integration, tool registration layer, resources, and LLM logic.
+
+  src/mcp/prompts.ts
+    System prompts and instruction templates used by the LLM.
+    Defines how the assistant should speak and which tools it is allowed to use.
+
+  src/mcp/resources.ts
+    Optional MCP resources definition for external MCP clients.
+    Describes non tool resources if needed.
+
+  src/mcp/types.ts
+    Shared types that are specific to the MCP and tool layer.
+    Helps keep handlers strongly typed.
+
+  src/mcp/registry.ts
+    Simple registry object that mirrors every registered tool.
+    Shape:
+      registeredTools[toolName] = { meta, handler }
+    Used by the LLM router to manually call tools by name during fast rules or wizards.
+
+==================================================
+MCP TOOLS  WOO LAYER
+==================================================
+
+src/mcp/woo/
+  WooCommerce specific logic on top of controllers.
+
+  src/mcp/woo/wooCredentials.ts
+    Central resolver for WooCommerce credentials.
+    Accepts:
+      tool arguments  which may contain url, ck, cs
+      ToolCtx         which includes client context
+      environment variables as fallback
+    Resolution order for each field is:
+      args value
+      ctx.client value from the database
+      process.env default value
+    Throws a clear error if any required credential is missing.
+    This ensures that tools behave correctly for each tenant.
+
+  src/mcp/woo/registry.ts
+    Local registry specific to Woo tools.
+    Allows looking up handlers such as woo_get_products at runtime.
+
+  src/mcp/woo/wooTools/
+    Grouped files that register concrete tools on the MCP server.
+
+    wooAddTools.ts
+      Registers the woo_create_product tool.
+      Uses WooCreateProductArgs and wooCreateProductSchema.
+      Calls createProduct controller with credentials from resolveWooCredentials.
+      Formats the created product with formatSingleProduct and returns HTML.
+
+    wooGetTools.ts
+      Registers all read only tools:
+        woo_get_products
+        woo_get_product_by_id
+        woo_get_product_by_sku
+        woo_get_products_by_name
+        woo_get_products_by_category
+      Each handler uses resolveWooCredentials and delegates to the correct controller function.
+      Results are rendered with formatProducts or formatSingleProduct.
+
+    wooUpdateTools.ts
+      Registers tools for updating products:
+        woo_update_product_by_id
+        woo_update_product_by_sku
+      Each handler uses resolveWooCredentials and delegates to updateProduct or updateProductBySku.
+      Returns formatted HTML for the updated product.
+
+    wooDeleteTools.ts
+      Registers tools for deleting products:
+        for example woo_delete_product_by_id or by sku.
+      Uses delete controllers and returns confirmation messages.
+
+  src/mcp/woo/wooSchemas/
+    Zod schemas for WooCommerce tools.
+    Each file defines the shape of the tool input.
+
+    addSchemas.ts
+      Base fields for credentials plus product data object.
+
+    getSchemas.ts
+      Input definitions for all read tools such as id, sku, name, category, and pagination.
+
+    updateSchemas.ts
+      Input definitions for update tools and allowed payload fields.
+
+    deleteSchemas.ts
+      Input definitions for delete tools.
+
+  src/mcp/woo/args/
+    Type definitions derived from Zod schemas.
+    Keeps TypeScript handlers clean and strongly typed.
+
+    addArgs.ts
+      Defines WooCreateProductArgs.
+
+    getArgs.ts
+      Defines:
+        WooGetProductsArgs
+        WooGetProductByIdArgs
+        WooGetProductBySkuArgs
+        WooGetProductsByNameArgs
+        WooGetProductsByCategoryArgs
+
+    updateArgs.ts
+      Defines WooUpdateProductByIdArgs and WooUpdateProductBySkuArgs.
+
+    deleteArgs.ts
+      Defines delete argument types.
+
+==================================================
+MCP LLM LAYER
+==================================================
+
+src/mcp/llm/
+  Core hybrid LLM logic for the main chat endpoint.
+
+  src/mcp/llm/history.ts
+    Very small in memory history for the current conversation.
+    Provides addUserMessage and addAssistantMessage.
+    Used mainly to give the LLM short context.
+
+  src/mcp/llm/intentAnalyzer.ts
+    Uses the LLM to decide whether to call a tool or stay in normal chat.
+    Returns an IntentDecision with:
+      shouldUseTool  boolean
+      toolName       selected tool
+      args           tool arguments
+      reason         explanation text
+
+  src/mcp/llm/llm.ts
+    Wrapper around the OpenAI chat completion API.
+    Uses environment configuration for model, temperature, and keys.
+
+  src/mcp/llm/quickRules.ts
+    Fast pattern rules that run before the LLM.
+    Handles simple numeric queries, guardrails, and wizard start phrases.
+
+  src/mcp/llm/router.ts
+    Main entry point for the chat logic that backs POST /chat.
+    Steps:
+      1  add the user message to history
+      2  determine session id per client
+      3  if a wizard is active continue the wizard flow
+      4  if fast rules match execute the selected tool
+      5  otherwise call analyzeIntent and possibly run a tool
+      6  if no tool is used, fall back to plain LLM chat
+    Returns BotReply objects of the form:
+      { text, debug }
+    The debug field includes:
+      mode            how the message was handled
+      selected tool   when relevant
+      intent reason   from the LLM
+      client info     client id, clientKey, name, store url masked keys
+
+  src/mcp/llm/setupLLMTool.ts
+    Registers a simple llm tool into the MCP server.
+    The tool takes a message field and returns a plain LLM reply.
+    It also mirrors tool handlers into registeredTools for debug usage.
+
+==================================================
+PRODUCT WIZARDS
+==================================================
+
+src/mcp/llm/wizards/
+  Multi step flows for complex tasks.
+
+  createProductWizard/
+    handler.ts
+      Implements the guided product creation wizard.
+      Supports two modes:
+        guided questions
+        raw JSON payload
+      Asks for basic fields, optional advanced sections, then confirmation.
+      Calls createProduct and returns formatted HTML.
+      Can include a debug block with the exact JSON payload sent to WooCommerce.
+
+    state.ts
+      Defines the WizardState interface and helpers:
+        getWizard
+        setWizard
+        clearWizard
+      Stores the current stage, collected data, and indices for questions.
+
+  updateProductWizard/
+    state.ts
+      Holds UpdateProductWizardState including:
+        productId
+        originalProduct
+        selected field list
+        payload to update
+
+    handler.ts
+      Implements the update wizard.
+      Locates product by id or sku using getProductById or getProductBySku.
+      Lets the user choose fields to update, asks new values, then builds a summary.
+      Creates a confirmation block with [[WIZARD_CONFIRM_META]] and waits for confirm or cancel.
+      On confirm calls updateProduct and returns updated product HTML.
+
+  bulkUpdateWizard/
+    state.ts and handler.ts
+      Similar structure for bulk updates such as updating many products by category or filter.
+      This wizard builds high level instructions and then applies them through a tool.
+
+==================================================
+ROUTING
+==================================================
+
+src/routes/appRouter.ts
+  Defines HTTP routes for the Express app.
+
+  POST /chat
+    Main endpoint used by the widget and by WordPress.
+    Reads user message from the body.
+    Passes request through resolveClient middleware to obtain ClientContext.
+    Calls handleUserMessage(message, mcpServer, { client }) and returns:
+      text   rendered HTML or answer
+      debug  JSON string for the debug panel inside the widget when enabled
+
+  Additional routes can include:
+    GET  /health   for uptime checks
+    POST /mcp      for external MCP clients if enabled
+
+==================================================
+UTILITIES
+==================================================
+
+src/utils/formatWoo.ts
+  Utility helpers that convert WooCommerce product JSON into HTML fragments.
+  Functions include:
+    formatProducts       grid of product cards
+    formatSingleProduct  detailed product card
+    formatProductBySku   view specialized for sku lookup
+  These helpers centralize all markup for Woo products so the LLM and tools stay domain focused.
+
+==================================================
+HOW THE CLIENT AND USER SYSTEM FITS TOGETHER
+==================================================
+
+  The WordPress site installs the woo-mcp-assistant plugin.
+  In the plugin settings screen the site owner pastes the client key issued by the MCP backend.
+  The plugin injects widget.js into the admin pages with:
+    data-server      url of the MCP /chat endpoint
+    data-client-key  the stored client key
+  When the user types a message in the widget, it calls POST /chat with that client key.
+  Express runs resolveClient middleware, which:
+    looks up the client record in the database using the client key
+    attaches ClientContext with WooCommerce url and keys
+  The chat route calls handleUserMessage and passes the client context.
+  Tools that need WooCommerce credentials call resolveWooCredentials.
+  resolveWooCredentials reads:
+    explicit args from the tool
+    ctx.client values from the database
+    .env defaults as a last fallback
+  This way the same MCP server can serve many different WooCommerce stores, each with its own keys, through a single chat widget implementation.
 
----
-
-## public/
-
-### public/widget.html  
-Standalone test page for the frontend chat widget.  
-Useful for testing the widget without integrating into a real site.
-
-### public/widget.js  
-Floating chatbot widget injected into the website.  
-Responsible for:  
-* Rendering chat user interface  
-* Opening and closing the widget  
-* Sending user messages to `POST /chat`  
-* Rendering HTML responses from the server  
-* Showing debug block when present  
-* Saving chat history in local storage  
-* Showing typing indicator  
-* Wide mode layout toggle  
-
----
-
-## src/
-
-Root of the backend server.
-
-### src/app.ts  
-Creates and configures the Express application.  
-Sets up middleware, JSON parsing, routes, and error handling.
-
-### src/server.ts  
-Main backend entry point.  
-Responsible for:  
-* Creating MCP server instance  
-* Registering all MCP tools  
-* Binding Express app to HTTP server  
-* Listening on `PORT` from environment
-
----
-
-## src/controllers/
-
-Low level WooCommerce REST API operations.  
-These files talk directly to the WooCommerce REST API and return raw JSON data.  
-They are used by MCP tools.
-
-### src/controllers/wooClient.ts  
-Factory for creating the WooCommerce REST client.  
-Handles base URL, auth keys, and generic GET or POST calls.
-
-### src/controllers/wooAddController.ts  
-Controller for creating products in WooCommerce.  
-Contains `createProduct` and related helper functions.
-
-### src/controllers/wooDeleteController.ts  
-Controller for deleting products from WooCommerce.  
-Contains operations such as soft delete or force delete.
-
-### src/controllers/wooGetController.ts  
-Controller for reading data from WooCommerce.  
-Contains functions such as:  
-* `getProducts`  
-* `getProductById`  
-* `getProductBySku`  
-* `getProductByName`  
-* `getProductsByCategory`
-
-### src/controllers/wooUpdateController.ts  
-Controller for updating products in WooCommerce.  
-Used by update tools and wizards when changing product fields.
-
----
-
-## src/mcp/
-
-Contains the MCP server implementation, hybrid LLM logic, resources, and all tool definitions.
-
-### src/mcp/prompts.ts  
-System prompts and instruction templates used by LLM tools and wizards.
-
-### src/mcp/resources.ts  
-Definition of MCP resources that can be exposed to clients.
-
-### src/mcp/types.ts  
-Shared TypeScript types used across MCP logic  
-For example `MCPToolResponse`, `MCPContentBlock`, and similar structures.
-
----
-
-## src/mcp/tools/
-
-MCP tools are grouped here by domain.
-
-### src/mcp/tools/global/dateTool.ts  
-Simple global tool that returns current date and time information.  
-Useful as an example and for debugging.
-
----
-
-## src/mcp/tools/woo/
-
-WooCommerce specific tool layer.  
-This sits between the controllers and the MCP server.
-
-### src/mcp/tools/woo/index.ts  
-Central entry point that registers all WooCommerce tools.  
-Calls each `registerWoo...Tools` function with the MCP server.
-
-### src/mcp/tools/woo/registry.ts  
-Simple registry object that stores tool metadata and handlers at runtime.  
-Shape: `registeredTools[toolName] = { handler, meta }`.
-
-### src/mcp/tools/woo/wooTools/
-
-Main tool modules for each operation group.
-
-* `wooAddTools.ts`  
-  * Registers `woo_create_product` tool  
-  * Uses `wooCreateProductSchema` for validation  
-  * Calls `createProduct` controller and `formatSingleProduct` for HTML
-
-* `wooDeleteTools.ts`  
-  * Registers tools for deleting products  
-  * Uses delete schemas and controllers from `wooDeleteController.ts`
-
-* `wooGetTools.ts`  
-  * Registers tools for reading products  
-  * Examples:  
-    * `woo_get_products`  
-    * `woo_get_product_by_id`  
-    * `woo_get_product_by_sku`  
-    * `woo_get_products_by_name`  
-    * `woo_get_products_by_category`  
-  * Uses get schemas and controllers and formats output with `formatProducts` and `formatSingleProduct`
-
-* `wooUpdateTools.ts`  
-  * Registers tools for updating products  
-  * Used by update product wizard when applying confirmed changes  
-  * Uses update schemas and `wooUpdateController.ts`
-
-### src/mcp/tools/woo/wooSchemas/
-
-Zod schemas for WooCommerce tools.  
-Each file defines the input shape for a specific tool group.
-
-* `addSchemas.ts`  
-  * `wooCreateProductSchema`  
-  * Base connection fields plus `data` object for new product
-
-* `deleteSchemas.ts`  
-  * Schemas for delete tools  
-  * For example product id or sku to delete
-
-* `getSchemas.ts`  
-  * Schemas for get tools such as:  
-    * `wooGetProductsSchema`  
-    * `wooGetProductByIdSchema`  
-    * `wooGetProductBySkuSchema`  
-    * `wooGetProductsByNameSchema`  
-    * `wooGetProductsByCategorySchema`  
-
-* `updateSchemas.ts`  
-  * Schemas for update tools  
-  * Defines which fields can be updated and how they are validated
-
-### src/mcp/tools/woo/args/
-
-Type definitions derived from the schemas.  
-These types are used by tool handlers instead of a single huge union.
-
-* `addArgs.ts`  
-  * `WooCreateProductArgs` based on `wooCreateProductSchema`
-
-* `deleteArgs.ts`  
-  * Argument types for delete tools  
-  * For example `WooDeleteProductArgs`
-
-* `getArgs.ts`  
-  * Argument types for all get tools:  
-    * `WooGetProductsArgs`  
-    * `WooGetProductByIdArgs`  
-    * `WooGetProductBySkuArgs`  
-    * `WooGetProductsByNameArgs`  
-    * `WooGetProductsByCategoryArgs`
-
-* `updateArgs.ts`  
-  * Argument types for update tools  
-  * For example `WooUpdateProductArgs`
-
-This split keeps schemas, types, and tool logic separated and easier to maintain.
-
----
-
-## src/mcp/llm/
-
-Core hybrid LLM engine used by the general chat and by some tools.
-
-### src/mcp/llm/history.ts  
-Stores and retrieves conversation history for the main chat flow.  
-Used to build context aware responses.
-
-### src/mcp/llm/intentAnalyzer.ts  
-LLM based intent classifier that decides which tool to call.  
-Given user message and history, returns a decision object with:  
-* whether to use a tool  
-* which tool name  
-* arguments for the tool  
-* reasoning string
-
-### src/mcp/llm/llm.ts  
-Wrapper around the chat model (for example OpenAI) used as the fallback text generator.  
-Handles model name, temperature, and basic safety.
-
-### src/mcp/llm/quickRules.ts  
-Fast rule engine that checks simple patterns without using the LLM.  
-For example direct date questions or trivial help commands.
-
-### src/mcp/llm/router.ts  
-Main hybrid router for normal chat.  
-Execution order:  
-1. Quick rules  
-2. LLM intent analyzer  
-3. Tool execution if needed  
-4. Fallback LLM reply  
-
-Returns a `{ text, debug }` object for the HTTP layer.
-
-### src/mcp/llm/setupLLMTool.ts  
-Registers an LLM tool into the MCP server so clients can call plain LLM responses if needed.
-
----
-
-## src/mcp/llm/wizards/
-
-Specialized wizard flows for multi step operations.  
-Each wizard has its own mini hybrid engine so it can ask follow up questions, confirm data, and then call the correct WooCommerce tool.
-
-### src/mcp/llm/wizards/createProductWizard/
-
-Wizard for creating products in multiple steps.
-
-* `handler.ts`  
-  * Main entry point for the create product wizard  
-  * Orchestrates wizard state, asks questions, and finally calls `woo_create_product` tool
-
-* `state.ts`  
-  * Defines the wizard state structure  
-  * Includes current step, collected product fields, and completion flags
-
-### src/mcp/llm/wizards/updateProductWizard/
-
-Wizard for updating an existing product with confirmation.
-
-* `history.ts`  
-  * History storage for this specific wizard flow  
-  * Tracks questions, user answers, and tool calls during the update session
-
-* `intentAnalyzer.ts`  
-  * Decides what the wizard should do next  
-  * For example detect which fields the user wants to update or whether to show a summary
-
-* `llm.ts`  
-  * LLM wrapper for this wizard context  
-  * Uses focused prompts and limited scope around product update tasks
-
-* `quickRules.ts`  
-  * Fast rules for the update wizard  
-  * Handles simple messages like “change only the price” without running a full LLM analysis
-
-* `router.ts`  
-  * Wizard router that combines quick rules, wizard intent, and the final call to the update tool  
-  * Also responsible for generating the confirmation message the user sees before applying changes
-
----
-
-## src/middleware/
-
-Reserved for Express middleware modules.  
-For example logging, authentication, or rate limiting can live here.
-
----
-
-## src/routes/
-
-### src/routes/appRouter.ts  
-Defines backend HTTP routes.
-
-Routes include:  
-* `POST /chat`  
-  * Main endpoint used by the widget  
-  * Calls `handleUserMessage` and returns `{ text, debug }`  
-
-* `POST /mcp`  
-  * Endpoint used by MCP clients or developer tools  
-
-* `GET /health`  
-  * Simple health check for monitoring and uptime checks
-
----
-
-## src/utils/
-
-### src/utils/formatWoo.ts  
-Utility functions that convert WooCommerce JSON objects into HTML.  
-Used by tools to return nice formatted cards inside the chat response.
-
----
-
-## .env
-
-Environment configuration file.  
-Typical keys:
-
-* `OPENAI_API_KEY`  
-* `WOO_URL`  
-* `WOO_CK`  
-* `WOO_CS`  
-* `PORT`  
-* `MODEL`  
-
----
-
-## How to remove debug data when going public
-
-To hide internal debug information in production:
-
-### In `src/mcp/llm/router.ts`  
-Remove or stop populating the `debug` field in the router return value.
-
-### In `src/routes/appRouter.ts`  
-Ensure the response from `POST /chat` includes only:  
-
-```ts
-{
-  text: result.text
-}
