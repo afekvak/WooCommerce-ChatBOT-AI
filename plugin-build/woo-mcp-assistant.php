@@ -10,14 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// option name in wp options table
+// option names in wp options table
 const WOO_MCP_OPTION_CLIENT_KEY = 'woo_mcp_client_key';
+const WOO_MCP_OPTION_ENABLED    = 'woo_mcp_enabled';
 
 // base url of the MCP server
 // for local development keep localhost
 // later in production change this to your EC2 url
 if ( ! defined( 'WOO_MCP_SERVER_BASE' ) ) {
-    define( 'WOO_MCP_SERVER_BASE', 'http://localhost:3000' );
+    define( 'WOO_MCP_SERVER_BASE', 'https://alexa-missing-delma.ngrok-free.dev' );
 }
 
 /**
@@ -30,7 +31,7 @@ function woo_mcp_register_admin_menu() {
         'manage_options',               // capability
         'woo-mcp-assistant',            // slug
         'woo_mcp_render_settings_page', // callback
-        'dashicons-robot',              // icon
+        'dashicons-format-chat',        // icon (changed from dashicons-robot)
         58                              // position
     );
 
@@ -43,12 +44,21 @@ function woo_mcp_register_admin_menu() {
         'woo_mcp_render_settings_page'
     );
 }
+
 add_action( 'admin_menu', 'woo_mcp_register_admin_menu' );
 
 /**
- * Register setting for client key
+ * Sanitize checkbox for enable or disable
+ */
+function woo_mcp_sanitize_enabled( $value ) {
+    return $value === '1' ? '1' : '0';
+}
+
+/**
+ * Register settings
  */
 function woo_mcp_register_settings() {
+    // client key
     register_setting(
         'woo_mcp_settings_group',
         WOO_MCP_OPTION_CLIENT_KEY,
@@ -56,6 +66,17 @@ function woo_mcp_register_settings() {
             'type'              => 'string',
             'sanitize_callback' => 'sanitize_text_field',
             'default'           => '',
+        )
+    );
+
+    // enable or disable widget
+    register_setting(
+        'woo_mcp_settings_group',
+        WOO_MCP_OPTION_ENABLED,
+        array(
+            'type'              => 'string',
+            'sanitize_callback' => 'woo_mcp_sanitize_enabled',
+            'default'           => '1',
         )
     );
 }
@@ -70,6 +91,7 @@ function woo_mcp_render_settings_page() {
     }
 
     $client_key = get_option( WOO_MCP_OPTION_CLIENT_KEY, '' );
+    $enabled    = get_option( WOO_MCP_OPTION_ENABLED, '1' );
     ?>
     <div class="wrap">
         <h1>Woo MCP Assistant</h1>
@@ -77,7 +99,7 @@ function woo_mcp_render_settings_page() {
         <p>
             Paste the Client Key you received from the Woo MCP dashboard.
             The assistant widget will be injected into the WordPress admin area
-            for your browser.
+            for your browser when it is enabled.
         </p>
 
         <p>
@@ -109,6 +131,27 @@ function woo_mcp_render_settings_page() {
                         </p>
                     </td>
                 </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="woo_mcp_enabled">Enable widget in admin</label>
+                    </th>
+                    <td>
+                        <label>
+                            <input
+                                type="checkbox"
+                                id="woo_mcp_enabled"
+                                name="<?php echo esc_attr( WOO_MCP_OPTION_ENABLED ); ?>"
+                                value="1"
+                                <?php checked( '1', $enabled ); ?>
+                            />
+                            Load the assistant widget on all admin pages
+                        </label>
+                        <p class="description">
+                            Uncheck this to temporarily stop injecting the widget without removing the Client Key.
+                        </p>
+                    </td>
+                </tr>
             </table>
 
             <?php submit_button(); ?>
@@ -122,17 +165,18 @@ function woo_mcp_render_settings_page() {
  */
 function woo_mcp_admin_footer_inject_widget() {
     $client_key = get_option( WOO_MCP_OPTION_CLIENT_KEY, '' );
+    $enabled    = get_option( WOO_MCP_OPTION_ENABLED, '1' );
 
-    if ( empty( $client_key ) ) {
+    // if no client key or disabled, do nothing
+    if ( empty( $client_key ) || '1' !== $enabled ) {
         return;
     }
 
     // dev version bump so changes to widget.js show immediately
-    $version    = time(); // for development only
-    $mcp_base   = rtrim( WOO_MCP_SERVER_BASE, '/' );
-    $widget_src = $mcp_base . '/widget.js?v=' . $version;
+    $version     = time(); // development only
+    $mcp_base    = rtrim( WOO_MCP_SERVER_BASE, '/' );
+    $widget_src  = $mcp_base . '/widget.js?v=' . $version;
     $chat_server = $mcp_base . '/chat';
-
     ?>
     <script
         src="<?php echo esc_url( $widget_src ); ?>"
