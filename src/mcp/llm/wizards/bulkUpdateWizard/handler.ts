@@ -1,3 +1,5 @@
+// src/mcp/llm/wizards/bulkUpdateWizard/handler.ts
+
 import {
   BulkUpdateWizardState,
   BulkOperation,
@@ -7,6 +9,10 @@ import {
   clearBulkWizard
 } from "./state";
 import { createWooClient } from "../../../../controllers/wooClient";
+
+// NEW imports: use the same client aware credential resolver as update wizard
+import type { ToolCtx } from "../../../types";
+import { resolveWooCredentials } from "../../../tools/woo/wooCredentials.js";
 
 type StepResult = { reply: string; done: boolean };
 
@@ -51,7 +57,8 @@ export async function startBulkUpdateWizard(
     category?: string;       // slug or name
     categoryHint?: string;   // free text such as "electronics"
     value?: any;
-  } = {}
+  } = {},
+  ctx?: ToolCtx                 // NEW: accept ToolCtx so we are symmetrical with other wizards
 ): Promise<StepResult> {
   const state: BulkUpdateWizardState = {
     stage: "scope",
@@ -150,7 +157,8 @@ export async function startBulkUpdateWizard(
 
 export async function handleBulkUpdateWizardStep(
   sessionId: string,
-  message: string
+  message: string,
+  ctx?: ToolCtx                // NEW: accept ToolCtx
 ): Promise<StepResult> {
   const state = getBulkWizard(sessionId);
   if (!state) {
@@ -161,14 +169,13 @@ export async function handleBulkUpdateWizardStep(
   const t = raw.toLowerCase();
 
   if (
-  t === "cancel" ||
-  t === "no" ||
-  /^__WIZ_CANCEL__/i.test(raw)
-) {
-  clearBulkWizard(sessionId);
-  return { reply: "Bulk update wizard cancelled.", done: true };
-}
-
+    t === "cancel" ||
+    t === "no" ||
+    /^__WIZ_CANCEL__/i.test(raw)
+  ) {
+    clearBulkWizard(sessionId);
+    return { reply: "Bulk update wizard cancelled.", done: true };
+  }
 
   // route by stage
   if (state.stage === "scope") {
@@ -192,7 +199,7 @@ export async function handleBulkUpdateWizardStep(
   }
 
   if (state.stage === "confirm") {
-    return handleConfirmStage(sessionId, state, raw);
+    return handleConfirmStage(sessionId, state, raw, ctx);   // NEW: pass ctx
   }
 
   clearBulkWizard(sessionId);
@@ -539,7 +546,8 @@ function handleValueStage(
 async function handleConfirmStage(
   sessionId: string,
   state: BulkUpdateWizardState,
-  answer: string
+  answer: string,
+  ctx?: ToolCtx                     // NEW: accept ToolCtx
 ): Promise<StepResult> {
   const t = answer.trim().toLowerCase();
 
@@ -559,7 +567,7 @@ async function handleConfirmStage(
 
   // execute bulk update
   try {
-    const { updated, total } = await executeBulkUpdate(state);
+    const { updated, total } = await executeBulkUpdate(state, ctx);  // NEW: pass ctx
     clearBulkWizard(sessionId);
 
     const scopeLabel =
@@ -644,11 +652,11 @@ function buildBulkConfirmationSummary(state: BulkUpdateWizardState): string {
 // ============================
 
 async function executeBulkUpdate(
-  state: BulkUpdateWizardState
+  state: BulkUpdateWizardState,
+  ctx?: ToolCtx                          // NEW: accept ToolCtx
 ): Promise<{ total: number; updated: number }> {
-  const url = process.env.WOO_URL!;
-  const ck = process.env.WOO_CK!;
-  const cs = process.env.WOO_CS!;
+  // NEW: use per client credentials instead of env only
+  const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
   const api = createWooClient(url, ck, cs);
 

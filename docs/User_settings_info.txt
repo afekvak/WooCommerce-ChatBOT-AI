@@ -1,0 +1,269 @@
+user_settings_info.txt
+
+PURPOSE
+This document explains how “client preferences and settings” work end-to-end in the WooCommerce MCP Bot project, so you can confidently add new settings later without breaking routing, tools, or the widget.
+
+The system is designed around one idea:
+1. The widget sends a clientKey with every request
+2. The server resolves the client and the client config from Postgres
+3. The server passes { client, clientConfig } into your LLM router and tools
+4. The widget can optionally fetch /client-config once to apply UI preferences (theme, scale, wide mode)
+
+This gives you device switching automatically, because the source of truth is Postgres, not localStorage.
+
+
+CURRENT BUILDING BLOCKS
+
+A. Users table (already exists)
+You already resolve the client identity from users:
+- client_key identifies the owner
+- full_name or similar gives the real name (optional)
+- woo_url, woo_ck, woo_cs support Woo API tools
+
+Handled by:
+- src/middleware/resolveClient.ts
+
+B. mcp_client_config table (new config source of truth)
+This table stores per-clientKey configuration as JSON:
+- server_prefs (prefs that affect assistant behavior, e.g. allowRealName)
+- server_settings (future: confirmations, policies, behavior toggles)
+- ui_settings (widget UI preferences like theme and scale)
+
+Example row:
+{
+  "client_key": "TEST123",
+  "server_prefs": { "allowRealName": true },
+  "server_settings": {
+    "confirmations": {
+      "createProduct": false,
+      "deleteProduct": false,
+      "updateProduct": false
+    }
+  },
+  "ui_settings": { "scale": 1, "theme": "light", "defaultWide": false }
+}
+
+
+SERVER FLOW
+
+1. Widget request
+The widget sends:
+{
+  "message": "hello",
+  "clientKey": "TEST123"
+}
+
+2. appRouter attaches context and config
+In src/routes/appRouter.ts:
+- clientResolver.clientMiddleware attaches req.clientContext
+- clientConfigResolver.clientConfigMiddleware attaches req.clientConfig
+- You call:
+  handleUserMessage(message, server, { client, clientConfig });
+
+Meaning: every message is processed with both client identity and config.
+
+3. resolveClientConfig middleware
+src/middleware/resolveClientConfig.ts does:
+1) reads config by clientKey
+2) if no row exists, inserts defaults and returns them
+
+So: If no config exists for a key, defaults are used automatically.
+
+
+WHERE SETTINGS ACTUALLY TAKE EFFECT
+
+A. “Server behavior” settings
+Server behavior must be implemented in server code.
+Example: allowRealName works only if you actually use it when generating the intro or prompt.
+
+Correct pattern:
+- clientDisplayName = allowRealName ? rawClientName : undefined
+- pass clientDisplayName into buildToolIntro and askLLM
+
+B. “UI-only” settings
+UI settings like theme and scale do not automatically affect anything unless your widget applies them.
+
+Server can return UI values, but the widget must:
+- fetch them
+- apply them to CSS or DOM
+
+You already added /client-config.
+Now the widget must call it and apply:
+- theme class
+- scale
+- defaultWide
+
+
+RECOMMENDED STRUCTURE FOR FUTURE SETTINGS
+
+Split settings into 3 categories:
+
+1) Prefs (server behavior related)
+Examples:
+- allowRealName
+- language for responses (he/en)
+- tone (short vs detailed)
+- tool usage strictness (never do “LLM fallback” for certain actions)
+
+These must be applied in server code.
+
+2) Settings (server logic toggles)
+Examples:
+- confirmations (create/update/delete)
+- safety policies (block risky actions)
+- feature flags (enableBulkUpdateWizard true/false)
+- max products returned in lists
+- default sort (date, price)
+
+These should be applied in:
+- wizard logic
+- tool handlers
+- router behavior
+
+3) UI settings (widget-only)
+Examples:
+- theme (dark/light)
+- scale (zoom)
+- defaultWide
+- showDebugBlock true/false
+- showQuickButtons true/false
+
+These must be applied in widget code.
+
+
+STEP-BY-STEP: ADDING A NEW SETTING (BEST PRACTICE)
+
+Step 1: Decide category
+Who consumes it?
+- If the bot’s responses/behavior change -> server (prefs/settings)
+- If only the widget look changes -> ui_settings
+
+Step 2: Add default
+Update:
+- src/clientConfig/defaults.ts
+Example:
+export const DEFAULT_UI = {
+  theme: "dark",
+  scale: 1,
+  defaultWide: false,
+  showQuickButtons: true
+};
+
+Step 3: Extend types
+Update:
+- src/clientConfig/types.ts
+Example:
+export interface UiSettings {
+  theme: "dark" | "light";
+  scale: number;
+  defaultWide: boolean;
+  showQuickButtons: boolean;
+}
+
+Step 4: Update merge logic
+Update:
+- src/middleware/resolveClientConfig.ts mergeConfig
+Example:
+showQuickButtons:
+  typeof uiObj.showQuickButtons === "boolean"
+    ? uiObj.showQuickButtons
+    : DEFAULT_UI.showQuickButtons
+
+Critical: If merge is not updated, your new setting will silently never apply.
+
+Step 5: Apply the setting in the correct layer
+
+If server behavior:
+Use it in router or wizard/tool code.
+Example:
+const allowBulk =
+  typeof clientConfig?.settings?.featureFlags?.bulkUpdate === "boolean"
+    ? clientConfig.settings.featureFlags.bulkUpdate
+    : true;
+
+if (!allowBulk && (low.includes("bulk") || ai.toolName === "wizard_bulk_update")) {
+  return { text: "Bulk updates are disabled in your settings." };
+}
+
+If UI:
+Fetch config once in widget and apply:
+- add a class on root like theme-light
+- hide buttons based on flags
+- apply scaling using CSS variable
+
+
+HOW TO UPDATE SETTINGS IN THE DATABASE (MANUAL TESTING)
+
+Update allowRealName:
+update mcp_client_config
+set server_prefs = jsonb_set(server_prefs, '{allowRealName}', 'false'::jsonb, true)
+where client_key = 'TEST123';
+
+Update UI theme:
+update mcp_client_config
+set ui_settings = jsonb_set(ui_settings, '{theme}', '"light"'::jsonb, true)
+where client_key = 'TEST123';
+
+Update UI scale:
+update mcp_client_config
+set ui_settings = jsonb_set(ui_settings, '{scale}', '1.15'::jsonb, true)
+where client_key = 'TEST123';
+
+Important:
+If the widget does not re-fetch config or re-apply it, it will still look the same.
+
+
+CACHING CONSIDERATIONS (WHY SETTINGS MAY NOT WORK INSTANTLY)
+
+If you add caching on config, you must consider refresh:
+1) no cache (simplest)
+2) small TTL cache (5 to 15 seconds)
+3) cache bust when config is updated (requires an API)
+
+If your middleware resolves config per request, it should reflect DB changes.
+If you later add a cache, make sure you can clear it.
+
+
+DEBUGGING CHECKLIST (WHEN SETTINGS DON’T WORK)
+
+1) Is config being loaded at all
+Add to debug block in router.ts:
+- clientKey
+- allowRealName
+- ui.theme ui.scale ui.defaultWide
+If debug shows correct values but UI doesn’t change, it’s a widget apply issue.
+
+2) Is widget fetching /client-config
+If not, it will never know theme/scale/defaultWide unless you embed it in the /chat response.
+
+3) Are you mixing “server applies it” vs “widget applies it”
+Theme is widget-only.
+allowRealName is server-only.
+
+4) Is the widget using hardcoded CSS
+If your CSS always sets dark colors without a “light mode override”, theme changes will not visually show.
+You need a theme-light override section.
+
+
+RECOMMENDED NEXT IMPLEMENTATION (CLEAN AND SCALABLE)
+
+Widget should do this on load:
+1) Call /client-config using CLIENT_KEY
+2) Apply:
+   - theme by toggling a class
+   - scale via CSS variable
+   - defaultWide by toggling .wide
+
+Server should do this:
+1) Always pass clientConfig into ToolCtx
+2) Use prefs/settings only where needed
+3) Keep UI-only settings out of server logic
+
+
+SUMMARY
+- Preferences and settings live in Postgres keyed by client_key
+- resolveClient gives identity + Woo credentials
+- resolveClientConfig gives config JSON merged with defaults
+- Server behavior settings must be applied in router/tools/wizards
+- UI settings must be applied in widget CSS/DOM
+- Adding a new setting requires: defaults, types, merge logic, and applying it in the correct layer

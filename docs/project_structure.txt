@@ -43,7 +43,7 @@ plugin-build/
     Main plugin file for WordPress.
     Adds an admin menu page called Woo MCP Assistant.
     Stores a client key in the wp_options table.
-    Injects a script tag with widget.js into the admin footer when a client key is configured.
+    Injects a script tag with the widget runtime into the admin footer when a client key is configured.
     The script tag points to the MCP server and passes:
       data-server      url of the /chat endpoint
       data-client-key  client key that identifies the tenant in the MCP database
@@ -56,17 +56,22 @@ public/
     Useful for testing the widget without using WordPress.
 
   public/widget.js
-    Floating chatbot widget injected into the site or WordPress admin.
+    Legacy widget bundle.
+    Earlier version of the floating chat widget script.
+
+  public/widget.runtime.js
+    Current widget runtime used by WordPress and by widget.html.
     Responsible for:
-      Rendering the chat user interface and open or close animation
-      Reading data attributes such as data-server, data-client-key, data-title, data-theme
-      Sending user messages to POST /chat
+      Rendering the chat user interface
+      Reading widget config from window.__MCP_WIDGET_CONFIG__ and fallbacks
+      Sending user messages to POST /chat with clientKey
       Rendering HTML responses from the server
       Displaying the debug block when present
       Saving chat history in local storage
       Showing a typing indicator
       Supporting wide mode layout
       Handling wizard confirmation meta blocks and opening confirmation modals
+      Optional future: loading ui settings from GET /client-config
 
 ==================================================
 SRC ROOT
@@ -76,6 +81,7 @@ src/app.ts
   Creates and configures the Express application.
   Sets up JSON body parsing, CORS handling, and attaches the main router.
   Does not start listening on a port.
+  Note: CORS logic has been moved to src/middleware/cors.ts.
 
 src/server.ts
   Main backend entry point.
@@ -127,6 +133,15 @@ src/middleware/
       WooCommerce url and keys for that client
     This context is then passed into the MCP LLM router so tools know which tenant to use.
 
+  src/middleware/resolveClientConfig.ts
+    Loads per client configuration from mcp_client_config table.
+    Attaches a ClientConfig object to the request, containing:
+      prefs        server side behavior preferences such as allowRealName
+      settings     server side operational settings (placeholders for future confirmations and other toggles)
+      ui           ui preferences such as theme, scale, defaultWide
+    Ensures defaults are applied when the row or fields are missing.
+    Used by /chat so the LLM layer can behave consistently per client.
+
   src/middleware/jwtAuth.ts
     Authentication helper based on JSON Web Tokens.
     Designed to decrypt or unwrap WooCommerce credentials stored in the database.
@@ -134,8 +149,37 @@ src/middleware/
 
   src/middleware/cors.ts
     Central CORS configuration.
-    Will be used to move CORS setup out of app.ts.
-    Exports a function or middleware instance that sets allowed origins, headers, and methods.
+    Exports a middleware instance or function that sets:
+      allowed origins
+      allowed headers
+      allowed methods
+    Used by src/app.ts so CORS rules are defined in one place.
+
+==================================================
+CLIENT CONFIG
+==================================================
+
+src/clientConfig/
+  Centralized definitions for per client preferences and UI behavior.
+  This folder is the main place to expand settings in the future.
+
+  src/clientConfig/types.ts
+    TypeScript types for the client configuration object.
+    Examples:
+      ClientConfig
+      ClientPrefs
+      ClientSettings
+      UiSettings
+
+  src/clientConfig/defaults.ts
+    Default configuration values used when:
+      a client has no row in mcp_client_config
+      a json field is missing or invalid
+
+  src/clientConfig/service.ts
+    Optional helper service to load and cache config from the database.
+    Can be used if you prefer a service layer instead of middleware only.
+    If you use the middleware resolver directly, this file can still remain as a reusable utility for future routes.
 
 ==================================================
 CONTROLLERS
@@ -193,6 +237,7 @@ src/mcp/
   src/mcp/types.ts
     Shared types that are specific to the MCP and tool layer.
     Helps keep handlers strongly typed.
+    Includes ToolCtx which now supports clientConfig, enabling tools and wizards to read settings.
 
   src/mcp/registry.ts
     Simple registry object that mirrors every registered tool.
@@ -315,6 +360,7 @@ src/mcp/llm/
   src/mcp/llm/llm.ts
     Wrapper around the OpenAI chat completion API.
     Uses environment configuration for model, temperature, and keys.
+    Fallback llm and Free text LLM calls like small helpers.
 
   src/mcp/llm/quickRules.ts
     Fast pattern rules that run before the LLM.
@@ -325,10 +371,11 @@ src/mcp/llm/
     Steps:
       1  add the user message to history
       2  determine session id per client
-      3  if a wizard is active continue the wizard flow
-      4  if fast rules match execute the selected tool
-      5  otherwise call analyzeIntent and possibly run a tool
-      6  if no tool is used, fall back to plain LLM chat
+      3  load clientConfig behavior flags and derive display logic such as allowRealName
+      4  if a wizard is active continue the wizard flow
+      5  if fast rules match execute the selected tool
+      6  otherwise call analyzeIntent and possibly run a tool
+      7  if no tool is used, fall back to plain LLM chat
     Returns BotReply objects of the form:
       { text, debug }
     The debug field includes:
@@ -336,6 +383,7 @@ src/mcp/llm/
       selected tool   when relevant
       intent reason   from the LLM
       client info     client id, clientKey, name, store url masked keys
+      client config   when enabled in debug, shows the active prefs and ui snapshot
 
   src/mcp/llm/setupLLMTool.ts
     Registers a simple llm tool into the MCP server.
@@ -395,15 +443,22 @@ src/routes/appRouter.ts
 
   POST /chat
     Main endpoint used by the widget and by WordPress.
-    Reads user message from the body.
-    Passes request through resolveClient middleware to obtain ClientContext.
-    Calls handleUserMessage(message, mcpServer, { client }) and returns:
+    Uses middleware to resolve:
+      ClientContext from src/middleware/resolveClient.ts
+      ClientConfig  from src/middleware/resolveClientConfig.ts
+    Calls handleUserMessage(message, mcpServer, { client, clientConfig }) and returns:
       text   rendered HTML or answer
       debug  JSON string for the debug panel inside the widget when enabled
 
-  Additional routes can include:
-    GET  /health   for uptime checks
-    POST /mcp      for external MCP clients if enabled
+  GET /client-config
+    Optional helper endpoint used by the widget to fetch ui settings for the current client key.
+    Returns the same ClientConfig object that is attached during /chat.
+
+  GET /health
+    Health check endpoint for uptime checks.
+
+  POST /mcp
+    Endpoint for external MCP clients if enabled.
 
 ==================================================
 UTILITIES
@@ -421,20 +476,24 @@ src/utils/formatWoo.ts
 HOW THE CLIENT AND USER SYSTEM FITS TOGETHER
 ==================================================
 
-  The WordPress site installs the woo-mcp-assistant plugin.
+  The WordPress site installs the woo mcp assistant plugin.
   In the plugin settings screen the site owner pastes the client key issued by the MCP backend.
-  The plugin injects widget.js into the admin pages with:
+  The plugin injects widget.runtime.js into the admin pages with:
     data-server      url of the MCP /chat endpoint
     data-client-key  the stored client key
   When the user types a message in the widget, it calls POST /chat with that client key.
   Express runs resolveClient middleware, which:
     looks up the client record in the database using the client key
     attaches ClientContext with WooCommerce url and keys
-  The chat route calls handleUserMessage and passes the client context.
+  Express runs resolveClientConfig middleware, which:
+    loads per client prefs and ui settings from mcp_client_config
+    applies defaults when missing
+  The chat route calls handleUserMessage and passes both:
+    client context
+    client config
   Tools that need WooCommerce credentials call resolveWooCredentials.
   resolveWooCredentials reads:
     explicit args from the tool
     ctx.client values from the database
     .env defaults as a last fallback
   This way the same MCP server can serve many different WooCommerce stores, each with its own keys, through a single chat widget implementation.
-

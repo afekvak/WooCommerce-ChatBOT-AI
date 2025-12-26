@@ -9,12 +9,29 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-export async function analyzeIntent(message: string): Promise<IntentDecision> {
+interface IntentOptions {
+  clientName?: string;
+}
+
+export async function analyzeIntent(
+  message: string,
+  options?: IntentOptions
+): Promise<IntentDecision> {
+  const clientName = options?.clientName;
+
+  const userMeta = clientName
+    ? `The user is a WooCommerce store owner named "${clientName}". 
+You never talk to the user directly, but you may use the name inside your reasoning when writing the "reason" field. 
+Never invent actions just because you know their name.`
+    : `You do not know the users name. Treat them as the store owner in your reasoning.`;
+
   const prompt = `
 You are an intent analyzer for a WooCommerce assistant.
 You never talk to the user directly.
 Your only job is to decide whether to call a tool or start a wizard,
 and to return a JSON object that tells the server what to do.
+
+${userMeta}
 
 Return JSON only. Do not add explanations outside JSON.
 

@@ -1,5 +1,6 @@
 // src/mcp/types.ts
-// src/mcp/woo/typesToolCtx.ts
+import type { ClientConfig } from "../clientConfig/types.js"; 
+
 export interface ClientContext {
   id: string;
   clientKey: string;
@@ -12,6 +13,7 @@ export interface ClientContext {
 
 export interface ToolCtx {
   client?: ClientContext;
+  clientConfig?: ClientConfig; 
 }
 
 
