@@ -27,62 +27,73 @@ export function createAppRouter(server: McpServer) {
   const clientResolver = createClientResolver(db); // client resolver helpers + middleware
   const clientConfigResolver = createClientConfigResolver(db); // config resolver helpers + middleware
 
-  // ==========================
-  // CHAT WIDGET ENDPOINT
-  // Now uses middleware to attach:
-  //   req.clientContext
-  //   req.clientConfig
-  // ==========================
-  router.post(
-    "/chat",
-    clientResolver.clientMiddleware, // attach req.clientContext
-    clientConfigResolver.clientConfigMiddleware, // attach req.clientConfig
-    async (req: ClientRequest & ClientConfigRequest, res) => {
-      try {
-        const { message } = (req.body || {}) as { message?: unknown }; // read message only, clientKey was handled by middleware
+// CHAT WIDGET ENDPOINT
+// Now uses middleware to attach:
+//   req.clientContext
+//   req.clientConfig
+// Also passes sessionId from the widget so history is per browser session
+// ==========================
+router.post(
+  "/chat",
+  clientResolver.clientMiddleware, // attach req.clientContext
+  clientConfigResolver.clientConfigMiddleware, // attach req.clientConfig
+  async (req: ClientRequest & ClientConfigRequest, res) => {
+    try {
+      const { message, sessionId } = (req.body || {}) as {
+        message?: unknown;
+        sessionId?: unknown;
+      }; // read message + sessionId
 
-        // validate message
-        if (!message || typeof message !== "string") {
-          return res.status(400).json({
-            text: "Missing message",
-            debug: CHAT_DEBUG_JSON ? "NO_MESSAGE" : ""
-          });
-        }
-
-        // require a valid resolved client
-        const client = req.clientContext; // from resolveClient middleware
-        if (!client) {
-          return res.status(401).json({
-            text: "Invalid client key",
-            debug: CHAT_DEBUG_JSON ? "CLIENT_NOT_FOUND" : ""
-          });
-        }
-
-        // optional config (should exist if clientKey exists, but keep safe)
-        const clientConfig = req.clientConfig || undefined; // from resolveClientConfig middleware
-
-        // pass BOTH client + config into the chat logic
-        const result = await handleUserMessage(message, server, {
-          client,
-          clientConfig
-        });
-
-        return res.json({
-  text: result.text || "",
-  debug: CHAT_DEBUG_JSON ? (result.debug || "") : "",
-  ui: clientConfig?.ui || null,
-  prefs: clientConfig?.prefs || null
-});
-
-      } catch (err) {
-        console.error("❌ Chat endpoint error:", err);
-        return res.status(500).json({
-          text: "Server error",
-          debug: CHAT_DEBUG_JSON ? (err as Error).message : ""
+      // validate message
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({
+          text: "Missing message",
+          debug: CHAT_DEBUG_JSON ? "NO_MESSAGE" : ""
         });
       }
+
+      // validate sessionId (optional, but helps avoid garbage values)
+      const safeSessionId =
+        typeof sessionId === "string" && sessionId.trim().length > 0
+          ? sessionId.trim()
+          : undefined;
+
+      // require a valid resolved client
+      const client = req.clientContext; // from resolveClient middleware
+      if (!client) {
+        return res.status(401).json({
+          text: "Invalid client key",
+          debug: CHAT_DEBUG_JSON ? "CLIENT_NOT_FOUND" : ""
+        });
+      }
+
+      // optional config (should exist if clientKey exists, but keep safe)
+      const clientConfig = req.clientConfig || undefined; // from resolveClientConfig middleware
+
+      // pass client + config + session id into the chat logic
+      const result = await handleUserMessage(
+        message,
+        server,
+        { client, clientConfig },
+        safeSessionId
+      );
+
+      return res.json({
+        text: result.text || "",
+        debug: CHAT_DEBUG_JSON ? (result.debug || "") : "",
+        ui: clientConfig?.ui || null,
+        prefs: clientConfig?.prefs || null
+      });
+    } catch (err) {
+      console.error("❌ Chat endpoint error:", err);
+      return res.status(500).json({
+        text: "Server error",
+        debug: CHAT_DEBUG_JSON ? (err as Error).message : ""
+      });
     }
-  );
+  }
+);
+
 
   // ==========================
   // OPTIONAL: CONFIG FETCH ENDPOINT

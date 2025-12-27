@@ -1,10 +1,10 @@
 // src/mcp/llm/router.ts
-
 import { quickRules } from "./quickRules";
 import { analyzeIntent } from "./intentAnalyzer";
 import { askLLM, buildToolIntro } from "./llm";
 import { addUserMessage, addAssistantMessage } from "./history";
 import type { IntentDecision, MCPToolResponse, BotReply, ToolCtx } from "../types";
+import crypto from "node:crypto";
 
 import { getWizard } from "./wizards/createProductWizard/state";
 import {
@@ -12,14 +12,12 @@ import {
   handleCreateProductWizardStep
 } from "./wizards/createProductWizard/handler";
 
-// update product wizard imports
 import { getUpdateWizard } from "./wizards/updateProductWizard/state";
 import {
   startUpdateProductWizard,
   handleUpdateProductWizardStep
 } from "./wizards/updateProductWizard/handler";
 
-// bulk update wizard imports
 import { getBulkWizard } from "./wizards/bulkUpdateWizard/state";
 import {
   startBulkUpdateWizard,
@@ -34,21 +32,28 @@ interface HandleCtx {
   clientConfig?: ClientConfig;
 }
 
-// helper to put full client info into debug (masking secrets)
 function buildClientDebug(ctx?: HandleCtx) {
   if (!ctx || !ctx.client) return null;
 
-  const c: any = ctx.client;
-  const { wooCk, wooCs, ...rest } = c;
+  const c = ctx.client;
+
+  const keyFingerprint =
+    c.clientKey && c.clientKey.length > 0
+      ? crypto.createHash("sha256").update(c.clientKey, "utf8").digest("hex").slice(0, 12)
+      : null;
 
   return {
-    ...rest,
-    wooCk: wooCk ? "***" : null,
-    wooCs: wooCs ? "***" : null
+    id: c.id ?? null,
+    name: c.name ?? null,
+    wooUrl: c.wooUrl ?? null,
+    wooCk: c.wooCk ? "***" : null,
+    wooCs: c.wooCs ? "***" : null,
+    clientKey: c.clientKey ? "***" : null,
+    clientKeyFingerprint: keyFingerprint,
+    clientKeyLength: c.clientKey ? c.clientKey.length : 0
   };
 }
 
-// minimal view of client config to verify what the server loaded
 function buildClientConfigDebug(ctx?: HandleCtx) {
   const cfg = ctx?.clientConfig;
 
@@ -59,7 +64,6 @@ function buildClientConfigDebug(ctx?: HandleCtx) {
         typeof cfg?.prefs?.allowRealName === "boolean" ? cfg.prefs.allowRealName : null
     },
     settings: {
-      // keep confirmations for later, but show what exists now
       confirmations:
         cfg?.settings?.confirmations && typeof cfg.settings.confirmations === "object"
           ? cfg.settings.confirmations
@@ -73,7 +77,6 @@ function buildClientConfigDebug(ctx?: HandleCtx) {
   };
 }
 
-// helper for tools and wizards that expect { client }
 function buildToolCtx(ctx?: HandleCtx): ToolCtx | undefined {
   if (!ctx || !ctx.client) return undefined;
 
@@ -83,7 +86,6 @@ function buildToolCtx(ctx?: HandleCtx): ToolCtx | undefined {
   };
 }
 
-// best effort to get a display name for the client
 function getClientName(ctx?: HandleCtx): string | undefined {
   if (!ctx || !ctx.client) return undefined;
 
@@ -96,7 +98,6 @@ function getClientName(ctx?: HandleCtx): string | undefined {
   );
 }
 
-// single helper so every debug payload includes client + clientConfig
 function makeDebug(
   base: Record<string, unknown>,
   debugClient: any,
@@ -113,51 +114,42 @@ function makeDebug(
   );
 }
 
+function normalizeSessionId(sessionId?: unknown) {
+  if (typeof sessionId !== "string") return "default";
+  const s = sessionId.trim();
+  if (!s) return "default";
+  if (s.length > 128) return s.slice(0, 128);
+  return s;
+}
+
 export async function handleUserMessage(
   message: string,
   server: any,
-  ctx?: HandleCtx
+  ctx?: HandleCtx,
+  sessionIdFromClient?: string
 ): Promise<BotReply> {
-  addUserMessage(message);
-
   const debugClient = buildClientDebug(ctx);
   const debugClientConfig = buildClientConfigDebug(ctx);
   const toolCtx = buildToolCtx(ctx);
 
-  // per client session so wizards are separated by client
-  const sessionId = ctx && ctx.client ? `client_${ctx.client.id}` : "default";
+  const browserSessionId = normalizeSessionId(sessionIdFromClient);
+  const tenantId = ctx?.client?.id != null ? String(ctx.client.id) : "default";
+  const sessionKey = `${tenantId}:${browserSessionId}`;
+
+  addUserMessage(sessionKey, message);
 
   const low = message.toLowerCase().trim();
 
-
-
-
-
-
-
-
-
-
-  // ============================================================
-  // CLIENT CONFIG (prefs, settings, ui)
-  // Add future settings logic here
-  // ============================================================
   const clientConfig = ctx?.clientConfig;
-
   const prefs = clientConfig?.prefs;
   const settings = clientConfig?.settings;
-  const ui = clientConfig?.ui;
 
-  // Name policy (no preferredName for now)
   const allowRealName =
     typeof prefs?.allowRealName === "boolean" ? prefs.allowRealName : true;
 
   const rawClientName = getClientName(ctx);
-
-  // If not allowed, don't pass a name at all
   const clientDisplayName = allowRealName ? rawClientName : undefined;
 
-  // Confirmation toggles (keep for later use inside wizards)
   const confirmCreateProduct =
     typeof settings?.confirmations?.createProduct === "boolean"
       ? settings.confirmations.createProduct
@@ -173,36 +165,23 @@ export async function handleUserMessage(
       ? settings.confirmations.deleteProduct
       : true;
 
-  // // UI settings (currently just loaded and exposed in debug)
-  // const uiTheme = ui?.theme;
-  // const uiScale = ui?.scale;
-  // const uiDefaultWide = ui?.defaultWide;
-
-  // NOTE: variables confirmCreateProduct/confirmUpdateProduct/confirmDeleteProduct,
-  // uiTheme/uiScale/uiDefaultWide are intentionally "unused" for now.
-  // They are here so you have one central place to apply them later.
-
-
-
-
-
-
-
-
+  // confirmCreateProduct, confirmUpdateProduct, confirmDeleteProduct are kept for later use
 
   // ============================================================
   // 1. CHECK IF A WIZARD IS ALREADY ACTIVE
   // ============================================================
-  const activeCreate = getWizard(sessionId);
-  const activeUpdate = getUpdateWizard(sessionId);
-  const activeBulk = getBulkWizard(sessionId);
+  const activeCreate = getWizard(sessionKey);
+  const activeUpdate = getUpdateWizard(sessionKey);
+  const activeBulk = getBulkWizard(sessionKey);
 
   if (activeCreate && activeCreate.mode === "create_product") {
     const wizardResult = await handleCreateProductWizardStep(
-      sessionId,
+      sessionKey,
       message,
       toolCtx
     );
+
+    addAssistantMessage(sessionKey, wizardResult.reply);
 
     return {
       text: wizardResult.reply,
@@ -211,7 +190,7 @@ export async function handleUserMessage(
           mode: "WIZARD",
           wizard: "create_product",
           done: wizardResult.done,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -221,10 +200,12 @@ export async function handleUserMessage(
 
   if (activeUpdate) {
     const wizardResult = await handleUpdateProductWizardStep(
-      sessionId,
+      sessionKey,
       message,
       toolCtx
     );
+
+    addAssistantMessage(sessionKey, wizardResult.reply);
 
     return {
       text: wizardResult.reply,
@@ -233,7 +214,7 @@ export async function handleUserMessage(
           mode: "WIZARD",
           wizard: "update_product",
           done: wizardResult.done,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -243,10 +224,12 @@ export async function handleUserMessage(
 
   if (activeBulk) {
     const wizardResult = await handleBulkUpdateWizardStep(
-      sessionId,
+      sessionKey,
       message,
       toolCtx
     );
+
+    addAssistantMessage(sessionKey, wizardResult.reply);
 
     return {
       text: wizardResult.reply,
@@ -255,7 +238,7 @@ export async function handleUserMessage(
           mode: "WIZARD",
           wizard: "bulk_update",
           done: wizardResult.done,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -272,7 +255,9 @@ export async function handleUserMessage(
     /new\s+product/.test(low);
 
   if (wantsCreateProduct) {
-    const intro = startCreateProductWizard(sessionId);
+    const intro = startCreateProductWizard(sessionKey);
+
+    addAssistantMessage(sessionKey, intro);
 
     return {
       text: intro,
@@ -280,7 +265,7 @@ export async function handleUserMessage(
         {
           mode: "WIZARD START",
           wizard: "create_product",
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -296,10 +281,12 @@ export async function handleUserMessage(
   if (fast.hit) {
     if (fast.tool === "wizard_update_product") {
       const wizardResult = await startUpdateProductWizard(
-        sessionId,
+        sessionKey,
         fast.args || {},
         toolCtx
       );
+
+      addAssistantMessage(sessionKey, wizardResult.reply);
 
       return {
         text: wizardResult.reply,
@@ -308,7 +295,7 @@ export async function handleUserMessage(
             mode: "WIZARD START",
             wizard: "update_product",
             target: fast.args || {},
-            sessionId
+            sessionId: sessionKey
           },
           debugClient,
           debugClientConfig
@@ -318,10 +305,12 @@ export async function handleUserMessage(
 
     if (fast.tool === "wizard_bulk_update") {
       const wizardResult = await startBulkUpdateWizard(
-        sessionId,
+        sessionKey,
         fast.args || {},
         toolCtx
       );
+
+      addAssistantMessage(sessionKey, wizardResult.reply);
 
       return {
         text: wizardResult.reply,
@@ -330,7 +319,7 @@ export async function handleUserMessage(
             mode: "WIZARD START",
             wizard: "bulk_update",
             target: fast.args || {},
-            sessionId
+            sessionId: sessionKey
           },
           debugClient,
           debugClientConfig
@@ -339,13 +328,15 @@ export async function handleUserMessage(
     }
 
     if (!fast.tool && fast.askUser) {
+      addAssistantMessage(sessionKey, fast.askUser);
+
       return {
         text: fast.askUser,
         debug: makeDebug(
           {
             mode: "FAST RULE BLOCK",
             reason: "User hit a quick rule block that requires clarification.",
-            sessionId
+            sessionId: sessionKey
           },
           debugClient,
           debugClientConfig
@@ -356,13 +347,16 @@ export async function handleUserMessage(
     if (fast.tool) {
       const tool = server.tools[fast.tool];
       if (!tool) {
+        const msg = `Tool ${fast.tool} not found.`;
+        addAssistantMessage(sessionKey, msg);
+
         return {
-          text: `Tool ${fast.tool} not found.`,
+          text: msg,
           debug: makeDebug(
             {
               mode: "FAST RULE",
               error: "Tool not registered",
-              sessionId
+              sessionId: sessionKey
             },
             debugClient,
             debugClientConfig
@@ -385,6 +379,8 @@ export async function handleUserMessage(
 
       const combined = intro ? `${intro}\n\n${rawText}` : rawText;
 
+      addAssistantMessage(sessionKey, combined);
+
       return {
         text: combined,
         debug: makeDebug(
@@ -392,7 +388,7 @@ export async function handleUserMessage(
             mode: "FAST RULE",
             toolUsed: fast.tool,
             args: fast.args,
-            sessionId
+            sessionId: sessionKey
           },
           debugClient,
           debugClientConfig
@@ -411,10 +407,12 @@ export async function handleUserMessage(
     const target = (rawArgs as any).target || rawArgs;
 
     const wizardResult = await startUpdateProductWizard(
-      sessionId,
+      sessionKey,
       target || {},
       toolCtx
     );
+
+    addAssistantMessage(sessionKey, wizardResult.reply);
 
     return {
       text: wizardResult.reply,
@@ -424,7 +422,7 @@ export async function handleUserMessage(
           wizard: "update_product",
           args: target || {},
           reason: ai.reason,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -436,10 +434,12 @@ export async function handleUserMessage(
     const wizardArgs = ai.args || {};
 
     const wizardResult = await startBulkUpdateWizard(
-      sessionId,
+      sessionKey,
       wizardArgs,
       toolCtx
     );
+
+    addAssistantMessage(sessionKey, wizardResult.reply);
 
     return {
       text: wizardResult.reply,
@@ -449,7 +449,7 @@ export async function handleUserMessage(
           wizard: "bulk_update",
           args: wizardArgs,
           reason: ai.reason,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -461,14 +461,17 @@ export async function handleUserMessage(
     const tool = server.tools[ai.toolName];
 
     if (!tool) {
+      const msg = `Tool ${ai.toolName} not found.`;
+      addAssistantMessage(sessionKey, msg);
+
       return {
-        text: `Tool ${ai.toolName} not found.`,
+        text: msg,
         debug: makeDebug(
           {
             mode: "AI INTENT",
             error: `AI selected tool "${ai.toolName}" but it does not exist`,
             reason: ai.reason,
-            sessionId
+            sessionId: sessionKey
           },
           debugClient,
           debugClientConfig
@@ -488,10 +491,9 @@ export async function handleUserMessage(
     });
 
     const body = result.content?.[0]?.text || "(empty)";
-
     const combined = `${intro}\n[[INTRO_BREAK]]\n${body}`;
 
-    addAssistantMessage(`(used ${ai.toolName})`);
+    addAssistantMessage(sessionKey, combined);
 
     return {
       text: combined,
@@ -501,7 +503,7 @@ export async function handleUserMessage(
           toolUsed: ai.toolName,
           args: ai.args,
           reason: ai.reason,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -513,22 +515,26 @@ export async function handleUserMessage(
   // 5. SAFETY
   // ============================================================
   if (low.includes("update") && low.includes("product")) {
+    const msg =
+      "I did not start an update yet because I am not sure exactly what you want to change.\n\n" +
+      "You can say for example:\n" +
+      "• update product 1864\n" +
+      "• update product mouse-1\n" +
+      "• update all products by 10%\n" +
+      "• update products in category 15\n" +
+      "and I will start the correct update wizard.";
+
+    addAssistantMessage(sessionKey, msg);
+
     return {
-      text:
-        "I did not start an update yet because I am not sure exactly what you want to change.\n\n" +
-        "You can say for example:\n" +
-        "• update product 1864\n" +
-        "• update product mouse-1\n" +
-        "• update all products by 10%\n" +
-        "• update products in category 15\n" +
-        "and I will start the correct update wizard.",
+      text: msg,
       debug: makeDebug(
         {
           mode: "SAFE UPDATE BLOCK",
           note:
             "Prevented LLM fallback on update phrase so the model does not pretend it updated WooCommerce.",
           aiReason: ai.reason || null,
-          sessionId
+          sessionId: sessionKey
         },
         debugClient,
         debugClientConfig
@@ -540,11 +546,12 @@ export async function handleUserMessage(
   // 6. LLM FALLBACK PURE CHAT
   // ============================================================
   const completion = await askLLM(message, {
-    clientName: clientDisplayName
+    clientName: clientDisplayName,
+    sessionKey
   });
 
   const text = completion.choices?.[0]?.message?.content || "(no content from LLM)";
-  addAssistantMessage(text);
+  addAssistantMessage(sessionKey, text);
 
   return {
     text,
@@ -553,7 +560,7 @@ export async function handleUserMessage(
         mode: "LLM FALLBACK",
         toolUsed: null,
         aiReason: ai.reason || null,
-        sessionId
+        sessionId: sessionKey
       },
       debugClient,
       debugClientConfig

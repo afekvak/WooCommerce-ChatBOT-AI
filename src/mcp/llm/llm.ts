@@ -13,6 +13,7 @@ const openai = new OpenAI({
 // optional options for the fallback chat LLM
 export interface AskLLMOptions {
   clientName?: string;
+  sessionKey?: string;
 }
 
 // main fallback chat call
@@ -21,84 +22,63 @@ export async function askLLM(
   options: AskLLMOptions = {}
 ) {
   const { clientName } = options;
+  const sessionKey = options.sessionKey || "default";
 
-  // Stronger but still sane guidance about using the name
+  // IMPORTANT:
+  // This widget is running inside WordPress Admin, so the user is an ADMIN/OWNER, not a shopper.
+  // This prevents the model from acting like customer support for storefront visitors.
   const baseSystem =
-    "You are a WooCommerce shop assistant. Follow the project rules strictly. Be concise but friendly.";
+    "You are an internal WooCommerce Admin Copilot embedded in the WordPress admin dashboard. " +
+    "The user chatting with you is the store administrator or store owner, not a shopper/customer. " +
+    "Never describe the user as a 'customer', 'buyer', 'shopper', or 'visitor'. " +
+    "If the user asks 'who am I' or asks for identity, explain you only know they are the store admin unless a verified admin name is provided. " +
+    "Follow project rules strictly. Be concise, accurate, and helpful.";
 
   const nameNote = clientName
-    ? ` The store owner is named "${clientName}". In greetings or short confirmations it is good practice to address them by name in a natural way, especially in your first reply of a conversation. Do not overuse their name in every sentence.`
-    : " You do not know the user's name for this request, so do not invent one.";
+    ? ` The verified store admin/owner name for this client is "${clientName}". You may address them by name naturally in the first reply of a conversation, but do not overuse the name.`
+    : " No verified admin/owner name is available for this client. Do not invent a name.";
 
   const systemContent = baseSystem + nameNote;
 
+  // Important:
+  // The router already stored the current user message into history for this session.
+  // So we only send system + session history.
   return openai.chat.completions.create({
     model: process.env.LLM_MODEL || "gpt-3.5-turbo",
+    temperature: 0.4,
     messages: [
       { role: "system", content: systemContent },
-      ...getHistory(),
-      { role: "user", content: text }
+      ...getHistory(sessionKey)
     ]
   });
 }
 
 /**
  * Build a short friendly intro line that comes before a tool result.
- * Example output:
- *  "Here is the information I found for this product."
- *  "Here is an overview of products that match what you asked for."
- *
  * NOTE: This helper must NOT mention the user's name, even if provided.
  */
 export async function buildToolIntro(params: {
   toolName: string;
   lastUserMessage: string;
-  clientName?: string; // accepted but not used in the sentence
+  clientName?: string;
 }): Promise<string> {
   const { toolName, lastUserMessage } = params;
 
-  const systemPrompt = `
-You are a helper that writes a single friendly sentence that introduces a tool result
-for a WooCommerce assistant.
-
-You do NOT decide which tool to use and you do NOT show any raw data.
-You only write an intro sentence that will appear before the tool output.
-
-Rules:
-• Use a warm professional tone.
-• Mention the tool context in natural language (for example: product details, a list of products, category results, etc.).
-• You MUST NOT mention the user's name even if it is provided in the input.
-• Never ask new questions here, this text comes AFTER the user already asked.
-• Output only one sentence, no bullet list, no code fences, no markdown.
-
-Examples:
-
-Input:
-  toolName: "woo_get_product_by_id"
-  lastUserMessage: "show me product 1849"
-
-Possible output:
-  "Here is the information I found for that product."
-
-Input:
-  toolName: "woo_get_products"
-  lastUserMessage: "show me my latest products"
-
-Possible output:
-  "Here is an overview of products that match what you asked for."
-
-Input:
-  toolName: "woo_get_products_by_category"
-  lastUserMessage: "show me all products in category 12"
-
-Possible output:
-  "Here are the products I found in the requested category."
-`.trim();
+  const systemPrompt =
+    "You are a helper that writes a single friendly sentence that introduces a tool result " +
+    "for a WooCommerce Admin Copilot (WordPress admin dashboard).\n\n" +
+    "You do NOT decide which tool to use and you do NOT show any raw data.\n" +
+    "You only write an intro sentence that will appear before the tool output.\n\n" +
+    "Rules:\n" +
+    "• Use a warm professional tone.\n" +
+    "• Mention the tool context in natural language (product details, list of products, category results, etc.).\n" +
+    "• You MUST NOT mention the user's name even if it is provided in the input.\n" +
+    "• Never ask new questions here; this text comes AFTER the user already asked.\n" +
+    "• Output only one sentence, no bullet list, no code fences, no markdown.";
 
   const userPayload = {
     toolName,
     lastUserMessage,
-    // clientName is intentionally ignored in the text, but kept in payload for future use if needed
     clientName: params.clientName ?? null
   };
 
@@ -107,20 +87,16 @@ Possible output:
     temperature: 0.4,
     messages: [
       { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: JSON.stringify(userPayload)
-      }
+      { role: "user", content: JSON.stringify(userPayload) }
     ]
   });
 
-  const text =
+  const out =
     completion.choices?.[0]?.message?.content?.trim() || "";
 
-  if (!text) {
+  if (!out) {
     return "Here is the information I collected for you.";
   }
 
-  // normalize to a single line just in case
-  return text.replace(/\s+/g, " ").trim();
+  return out.replace(/\s+/g, " ").trim();
 }

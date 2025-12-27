@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Woo MCP Assistant
- * Description: Injects the WooCommerce MCP AI Assistant widget into the WordPress admin area (local assets mode).
- * Version: 0.2.0
+ * Description: Injects the WooCommerce MCP AI Assistant widget into the WordPress admin area.
+ * Version: 0.1.1
  * Author: Afek&Lior
  */
 
@@ -10,27 +10,27 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// option names in wp options table
 const WOO_MCP_OPTION_CLIENT_KEY = 'woo_mcp_client_key';
 const WOO_MCP_OPTION_ENABLED    = 'woo_mcp_enabled';
 
-/**
- * Change this to your MCP server chat endpoint when testing locally.
- * IMPORTANT:
- * - If WP admin is loaded over HTTPS and this is HTTP, the browser may block it (mixed content).
- */
-if ( ! defined( 'WOO_MCP_CHAT_SERVER' ) ) {
-    define( 'WOO_MCP_CHAT_SERVER', 'http://localhost:3000/chat' );
+// base url of the MCP server
+if ( ! defined( 'WOO_MCP_SERVER_BASE' ) ) {
+    define( 'WOO_MCP_SERVER_BASE', 'https://alexa-missing-delma.ngrok-free.dev' );
 }
 
+/**
+ * Register top level admin menu for Woo MCP Assistant
+ */
 function woo_mcp_register_admin_menu() {
     add_menu_page(
-        'Woo MCP Assistant',
-        'Woo MCP Assistant',
-        'manage_options',
-        'woo-mcp-assistant',
-        'woo_mcp_render_settings_page',
-        'dashicons-format-chat',
-        58
+        'Woo MCP Assistant',            // page title
+        'Woo MCP Assistant',            // menu title
+        'manage_options',               // capability
+        'woo-mcp-assistant',            // slug
+        'woo_mcp_render_settings_page', // callback
+        'dashicons-format-chat',        // icon
+        58                              // position
     );
 
     add_submenu_page(
@@ -44,10 +44,16 @@ function woo_mcp_register_admin_menu() {
 }
 add_action( 'admin_menu', 'woo_mcp_register_admin_menu' );
 
+/**
+ * Sanitize checkbox for enable or disable
+ */
 function woo_mcp_sanitize_enabled( $value ) {
     return $value === '1' ? '1' : '0';
 }
 
+/**
+ * Register settings
+ */
 function woo_mcp_register_settings() {
     register_setting(
         'woo_mcp_settings_group',
@@ -71,6 +77,9 @@ function woo_mcp_register_settings() {
 }
 add_action( 'admin_init', 'woo_mcp_register_settings' );
 
+/**
+ * Render the settings page
+ */
 function woo_mcp_render_settings_page() {
     if ( ! current_user_can( 'manage_options' ) ) {
         return;
@@ -84,12 +93,13 @@ function woo_mcp_render_settings_page() {
 
         <p>
             Paste the Client Key you received from the Woo MCP dashboard.
-            The assistant widget will be injected into the WordPress admin area when enabled.
+            The assistant widget will be injected into the WordPress admin area
+            for your browser when it is enabled.
         </p>
 
         <p>
-            Current chat server:
-            <code><?php echo esc_html( WOO_MCP_CHAT_SERVER ); ?></code>
+            Current MCP server base:
+            <code><?php echo esc_html( WOO_MCP_SERVER_BASE ); ?></code>
         </p>
 
         <form method="post" action="options.php">
@@ -111,7 +121,9 @@ function woo_mcp_render_settings_page() {
                             value="<?php echo esc_attr( $client_key ); ?>"
                             class="regular-text"
                         />
-                        <p class="description">Example: <code>TEST123</code></p>
+                        <p class="description">
+                            Example: <code>TEST123</code>
+                        </p>
                     </td>
                 </tr>
 
@@ -131,7 +143,7 @@ function woo_mcp_render_settings_page() {
                             Load the assistant widget on all admin pages
                         </label>
                         <p class="description">
-                            Uncheck this to stop injecting the widget without removing the Client Key.
+                            Uncheck this to temporarily stop injecting the widget without removing the Client Key.
                         </p>
                     </td>
                 </tr>
@@ -144,7 +156,7 @@ function woo_mcp_render_settings_page() {
 }
 
 /**
- * Inject widget.js from plugin assets into WP admin
+ * Inject widget.js into wp admin footer on all admin pages
  */
 function woo_mcp_admin_footer_inject_widget() {
     $client_key = get_option( WOO_MCP_OPTION_CLIENT_KEY, '' );
@@ -154,17 +166,17 @@ function woo_mcp_admin_footer_inject_widget() {
         return;
     }
 
-    // Prevent duplicate injection
+    // Prevent duplicate injection if other plugins/themes also hook admin_footer
     static $already_injected = false;
     if ( $already_injected ) {
         return;
     }
     $already_injected = true;
 
-    // IMPORTANT: widget.js will load widget.css + widget.runtime.js from the same folder path.
-    $widget_src = plugins_url( 'assets/widget.js', __FILE__ ) . '?v=' . time();
-    $chat_server = WOO_MCP_CHAT_SERVER;
-
+    $version     = time(); // dev cache bust
+    $mcp_base    = rtrim( WOO_MCP_SERVER_BASE, '/' );
+    $widget_src  = $mcp_base . '/widget.js?v=' . $version;
+    $chat_server = $mcp_base . '/chat';
     ?>
     <script
         src="<?php echo esc_url( $widget_src ); ?>"
