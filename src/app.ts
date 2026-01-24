@@ -10,7 +10,7 @@ export function createApp(server: McpServer) {
   
   app.use(corsMiddleware);
 
-  app.disable("x-powered-by");
+  app.disable("x-powered-by"); // disable Express header for security
   app.use(express.json());
   app.use(express.static("public"));
 

@@ -31,7 +31,7 @@ export function createClientResolver(db: Pool) {
 
     return {
       id: row.id,
-      clientKey: clientKey, // keep plaintext in memory only, not from DB
+      clientKey: clientKey, 
       wooUrl: row.woo_url,
       wooCk: row.woo_ck,
       wooCs: row.woo_cs,

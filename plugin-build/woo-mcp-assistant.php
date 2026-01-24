@@ -19,7 +19,7 @@ const WOO_MCP_OPTION_ENABLED    = 'woo_mcp_enabled';
  * - If WP admin is loaded over HTTPS and this is HTTP, the browser may block it (mixed content).
  */
 if ( ! defined( 'WOO_MCP_CHAT_SERVER' ) ) {
-    define( 'WOO_MCP_CHAT_SERVER', 'http://localhost:3000/chat' );
+    define( 'WOO_MCP_CHAT_SERVER', 'https://alexa-missing-delma.ngrok-free.dev/chat' );
 }
 
 function woo_mcp_register_admin_menu() {
