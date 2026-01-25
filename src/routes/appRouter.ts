@@ -1,33 +1,35 @@
 // src/routes/appRouter.ts
 
-import { Router } from "express"; // Express router
+import { Router } from "express"; // import Express router 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"; // MCP server type
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"; // MCP HTTP transport
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"; // MCP HTTP transport so it can work over HTTP
 
-import { handleUserMessage } from "../mcp/llm/router.js"; // your main chat router logic
+import { handleUserMessage } from "../mcp/llm/router.js"; // main chat router logic
 
-import { getDb } from "../db/pool.js"; // pg pool singleton
+import { getDb } from "../db/pool.js"; // pg pool to get DB connections
 import { createClientResolver } from "../middleware/resolveClient.js"; // resolves clientContext from clientKey
-import type { ClientRequest } from "../middleware/resolveClient.js"; // request type extended by resolveClient
+import type { ClientRequest } from "../middleware/resolveClient.js"; // import request type extended by resolveClient
 
 import { createClientConfigResolver } from "../middleware/resolveClientConfig.js"; // resolves clientConfig from DB
-import type { ClientConfigRequest } from "../middleware/resolveClientConfig.js"; // request type extended by resolveClientConfig
+import type { ClientConfigRequest } from "../middleware/resolveClientConfig.js"; // import request type extended by resolveClientConfig
 
 // -------------------------
 // DEBUG FLAG (from .env)
 // -------------------------
 const CHAT_DEBUG_JSON = process.env.CHAT_DEBUG_BLOCKS === "true"; // enable debug block responses
-console.log("Chat debug JSON responses mode", CHAT_DEBUG_JSON); // log current mode
+console.log("Chat debug JSON responses mode", CHAT_DEBUG_JSON); // log current mode to console
 
-export function createAppRouter(server: McpServer) {
+export function createAppRouter(server: McpServer) { // create the app router (accepts MCP server)
   const router = Router(); // create express router
 
   // Single DB pool + resolvers (created once)
   const db = getDb(); // get pool
-  const clientResolver = createClientResolver(db); // client resolver helpers + middleware
-  const clientConfigResolver = createClientConfigResolver(db); // config resolver helpers + middleware
+  const clientResolver = createClientResolver(db); // client resolver helpers + middleware accessing the DB
+  const clientConfigResolver = createClientConfigResolver(db); // config resolver helpers + middleware accessing the DB
 
+// -------------------------
 // CHAT WIDGET ENDPOINT
+// -------------------------
 // Now uses middleware to attach:
 //   req.clientContext
 //   req.clientConfig
@@ -121,7 +123,7 @@ router.post(
   );
 
   // ==========================
-  // MCP ENDPOINT (Claude / VSCode)
+  // MCP ENDPOINT (Claude / VSCode) (not used by the chat widget)
   // ==========================
   router.post(/^\/mcp(\/.*)?$/, async (req, res) => {
     const transport = new StreamableHTTPServerTransport({
@@ -135,11 +137,32 @@ router.post(
   });
 
   // ==========================
-  // HEALTH CHECK
+  // HEALTH CHECK ENDPOINT
   // ==========================
   router.get("/health", (_req, res) => {
     res.json({ ok: true, name: "woo-mcp-server" });
   });
 
-  return router; // return configured router
+
+
+
+  return router; // return configured router to the app
 }
+
+
+// how it works:
+// - creates the app router (accepts MCP server)
+// - creates an express router
+// ENDPOINTS // 
+// - sets up a main chat endpoint at /chat with middleware to resolve client and config from DB
+// - validates incoming message and sessionId
+// - calls handleUserMessage (from the main mcp logic router) with the message, MCP server, client context, config, and sessionId
+// - returns the chat response (from handleUserMessage func) with optional debug info, UI settings, and preferences
+
+// - sets up an optional /client-config endpoint to fetch client configuration
+
+// - *not used at the moment* sets up the MCP endpoint at /mcp for handling MCP requests from clients like Claude or VSCode
+
+// - sets up a health check endpoint at /health
+
+// - returns the configured router to be used by the express app

@@ -1,3 +1,36 @@
+==============================
+outside services used
+==============================
+* open ai
+* wp on amazon aws servers
+* pgsql database on supabase
+* openrouter(used at the start but not used anymore)
+* our chatbot website
+* render (for testing)
+* git repository - https://github.com/afekvak/WooCommerce-ChatBOT-AI
+
+==============================
+project built with
+==============================
+* Express/Http - for server setup
+* @ModelContextProtocol/sdk - for adding mcp integration to the server
+* Cors - for some middleware options
+* Dotenv - for environment variables
+* pg - to create a pool and connect to the PostgreSQL database on supabase
+* @woocommerce/woocommerce-rest-api - WC rest api for making full CRUD operations with a WC store
+* @openai - open AI api as the main LLM
+* nodemon - for automatic server restart during development when file changes are detected
+
+* zod - zod validates data at runtime and extracts TypeScript types from schemas to ensure data matches expected structures
+* TypeScript - for type safety and static type checking
+* tsx - TypeScript execution engine for running .ts files directly in development
+* @types/node - TypeScript type definitions for Node.js APIs
+
+
+
+
+
+
 PROJECT STRUCTURE DOCUMENTATION
 WooCommerce MCP Server / WooCommerce ChatBOT AI
 
