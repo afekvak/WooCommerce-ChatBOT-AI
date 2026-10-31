@@ -8,7 +8,8 @@ import {
   getBulkWizard,
   clearBulkWizard
 } from "./state";
-import { createWooClient } from "../../../../controllers/wooClient";
+import { createProductService } from "../../../../services/productService";
+import { bulkFields } from "../../../tools/workflowSchemas";
 
 // NEW imports: use the same client aware credential resolver as update wizard
 import type { ToolCtx } from "../../../types";
@@ -18,21 +19,7 @@ type StepResult = { reply: string; done: boolean };
 
 // which fields can be bulk updated
 // you can extend this list at any time
-const BULK_FIELDS = [
-  "regular_price",
-  "sale_price",
-  "status",
-  "stock_status",
-  "manage_stock",
-  "stock_quantity",
-  "backorders",
-  "catalog_visibility",
-  "featured",
-  "reviews_allowed",
-  "purchase_note",
-  "tax_status",
-  "tax_class"
-];
+const BULK_FIELDS: readonly string[] = bulkFields;
 
 const NUMERIC_FIELDS = new Set([
   "regular_price",
@@ -83,7 +70,7 @@ export async function startBulkUpdateWizard(
     state.operation = seed.operation;
   }
 
-  if (typeof seed.percent === "number") {
+  if (typeof seed.percent === "number" && seed.operation) {
     state.percent = seed.percent;
   }
 
@@ -658,18 +645,18 @@ async function executeBulkUpdate(
   // NEW: use per client credentials instead of env only
   const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
-  const api = createWooClient(url, ck, cs);
+  const productsService = createProductService(url, ck, cs);
 
   let categoryId: number | undefined = state.categoryId;
 
   if (state.scope === "category" && !categoryId && state.categorySlugOrName) {
     // resolve slug or name to id
-    const resp = await api.get("products/categories", {
+    const matches = await productsService.findTerms("categories", {
       per_page: 10,
       search: state.categorySlugOrName
     });
 
-    const cat = Array.isArray(resp.data) ? resp.data[0] : undefined;
+    const cat = Array.isArray(matches) ? matches[0] : undefined;
     if (!cat || !cat.id) {
       throw new Error(
         `Could not resolve category "${state.categorySlugOrName}" to an id.`
@@ -701,8 +688,8 @@ async function executeBulkUpdate(
       params.category = categoryId;
     }
 
-    const res = await api.get("products", params);
-    const products: any[] = Array.isArray(res.data) ? res.data : [];
+    const pageProducts = await productsService.listProducts(params);
+    const products: any[] = Array.isArray(pageProducts) ? pageProducts : [];
 
     if (!products.length) {
       break;
@@ -729,8 +716,8 @@ async function executeBulkUpdate(
     }
 
     if (updates.length) {
-      await api.put("products/batch", { update: updates });
-      updated += updates.length;
+      const result = await productsService.updateProductsBatch(updates);
+      updated += (result.update || []).filter(item => item.id && !item.error).length;
     }
 
     if (products.length < perPage) {

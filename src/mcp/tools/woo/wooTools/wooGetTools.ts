@@ -1,7 +1,7 @@
 // src/mcp/woo/wooTools/wooGetTools.ts
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import type { MCPToolResponse } from "../../../types";
-import { registeredTools } from "../../registry";
+import { registerTool } from "../../registry";
 
 import {
   WooGetProductsArgs,
@@ -25,7 +25,7 @@ import {
   getProductBySku,
   getProductsByCategory,
   getProductByName
-} from "../../../../controllers/wooGetController";
+} from "../../../../services/productService";
 
 import {
   formatProducts,
@@ -50,23 +50,21 @@ export function registerWooGetTools(server: McpServer) {
 
       return { content: [{ type: "text", text: html }] };
     } catch (err: any) {
-      return { content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
+      return { isError: true, content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_get_products",
     {
       title: "WooCommerce Get Products",
       description: "Fetches WooCommerce products",
+      chat: {},
       inputSchema: wooGetProductsSchema as any
     } as any,
     getProductsHandler as any
   );
 
-  registeredTools["woo_get_products"] = {
-    handler: getProductsHandler as any
-  };
 
   // GET PRODUCT BY ID
   const getProductByIdHandler = async (
@@ -88,23 +86,21 @@ export function registerWooGetTools(server: McpServer) {
 
       return { content: [{ type: "text", text: html }] };
     } catch (err: any) {
-      return { content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
+      return { isError: true, content: [{ type: "text", text: `❌ Error: ${err.message}` }] };
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_get_product_by_id",
     {
       title: "WooCommerce Get Product By ID",
       description: "Fetch a single product",
+      chat: {},
       inputSchema: wooGetProductByIdSchema as any
     } as any,
     getProductByIdHandler as any
   );
 
-  registeredTools["woo_get_product_by_id"] = {
-    handler: getProductByIdHandler as any
-  };
 
   // GET PRODUCT BY SKU
   const getProductBySkuHandler = async (
@@ -118,6 +114,7 @@ export function registerWooGetTools(server: McpServer) {
 
       if (!skuValue) {
         return {
+          isError: true,
           content: [{ type: "text", text: "❌ Invalid SKU." }]
         };
       }
@@ -141,24 +138,23 @@ export function registerWooGetTools(server: McpServer) {
       return { content: [{ type: "text", text: html }] };
     } catch (err: any) {
       return {
+        isError: true,
         content: [{ type: "text", text: `❌ Error: ${err.message}` }]
       };
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_get_product_by_sku",
     {
       title: "WooCommerce Get Product By SKU",
       description: "Fetch a single product using its SKU",
+      chat: {},
       inputSchema: wooGetProductBySkuSchema as any
     } as any,
     getProductBySkuHandler as any
   );
 
-  registeredTools["woo_get_product_by_sku"] = {
-    handler: getProductBySkuHandler as any
-  };
 
   // GET PRODUCTS BY NAME
   const getProductsByNameHandler = async (
@@ -172,6 +168,7 @@ export function registerWooGetTools(server: McpServer) {
 
       if (!searchTerm) {
         return {
+          isError: true,
           content: [
             { type: "text", text: "❌ Missing product name to search." }
           ]
@@ -202,6 +199,7 @@ export function registerWooGetTools(server: McpServer) {
       return { content: [{ type: "text", text: html }] };
     } catch (err: any) {
       return {
+        isError: true,
         content: [
           {
             type: "text",
@@ -212,20 +210,18 @@ export function registerWooGetTools(server: McpServer) {
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_get_products_by_name",
     {
       title: "WooCommerce Get Products By Name",
       description:
         "Search WooCommerce products by name and return matching products as cards.",
+      chat: {},
       inputSchema: wooGetProductsByNameSchema as any
     } as any,
     getProductsByNameHandler as any
   );
 
-  registeredTools["woo_get_products_by_name"] = {
-    handler: getProductsByNameHandler as any
-  };
 
   // GET PRODUCTS BY CATEGORY
   const getProductsByCategoryHandler = async (
@@ -235,10 +231,11 @@ export function registerWooGetTools(server: McpServer) {
     try {
       const { url, ck, cs } = resolveWooCredentials(args, ctx);
 
-      const finalCategory = args.categoryId ?? args.category;
+      const finalCategory = args.categoryId != null ? Number(args.categoryId) : args.category;
 
       if (!finalCategory) {
         return {
+          isError: true,
           content: [
             {
               type: "text",
@@ -261,23 +258,22 @@ export function registerWooGetTools(server: McpServer) {
       return { content: [{ type: "text", text: html }] };
     } catch (err: any) {
       return {
+        isError: true,
         content: [{ type: "text", text: `❌ Error: ${err.message}` }]
       };
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_get_products_by_category",
     {
       title: "WooCommerce Get Products by Category",
       description:
         "Fetches WooCommerce products filtered by category ID or slug",
+      chat: {},
       inputSchema: wooGetProductsByCategorySchema as any
     } as any,
     getProductsByCategoryHandler as any
   );
 
-  registeredTools["woo_get_products_by_category"] = {
-    handler: getProductsByCategoryHandler as any
-  };
 }

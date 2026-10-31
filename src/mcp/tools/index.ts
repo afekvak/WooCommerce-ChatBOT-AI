@@ -3,6 +3,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 
 import { registerDateTool } from "./global/dateTool.js";
 import { registerWooGetTools } from "./woo/wooTools/wooGetTools.js";
+import { registerWorkflowTools } from "./workflowTools";
+import {registerCatalogTools} from "./catalogTools";
+import { registerMemoryTools } from "./memoryTools";
 // If you have post/delete/add tools uncomment later:
  import { registerWooUpdateTools } from "./woo/wooTools/wooUpdateTools.js";
  import { registerWooDeleteTools } from "./woo/wooTools/wooDeleteTools.js";
@@ -19,4 +22,7 @@ export function setupAllTools(server: McpServer) {
   registerWooUpdateTools(server);
   registerWooDeleteTools(server);
   registerWooAddTools(server);
+  registerWorkflowTools(server);
+  registerMemoryTools(server);
+  registerCatalogTools(server);
 }

@@ -33,7 +33,7 @@ export const corsOptions: CorsOptions = {
   },
 
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-MCP-Client-Key"],
   credentials: false,
   optionsSuccessStatus: 204,
 };

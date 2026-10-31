@@ -1,45 +1,22 @@
 // src/mcp/llm/history.ts
 import type { ChatCompletionMessageParam } from "openai/resources/chat";
+import type { ConversationStore } from "../../db/conversations";
 
-const MAX_HISTORY = 10;
+/** Request-owned adapter: no shared default history or browser-supplied client ID. */
+export class ConversationHistory {
+  constructor(
+    private readonly store: ConversationStore,
+    private readonly clientId: string,
+    readonly conversationId: string
+  ) {}
 
-// sessionKey => messages
-const histories = new Map<string, ChatCompletionMessageParam[]>();
-
-function getOrInit(sessionKey: string) {
-  const key = sessionKey && sessionKey.trim() ? sessionKey.trim() : "default";
-  let h = histories.get(key);
-  if (!h) {
-    h = [];
-    histories.set(key, h);
+  append(role: "user" | "assistant", content: string) {
+    return this.store.append(this.clientId, this.conversationId, role, content);
   }
-  return h;
-}
 
-function trim(sessionKey: string) {
-  const h = getOrInit(sessionKey);
-  if (h.length > MAX_HISTORY) {
-    const sliced = h.slice(-MAX_HISTORY);
-    histories.set(sessionKey, sliced);
+  async recent(): Promise<ChatCompletionMessageParam[]> {
+    const messages = await this.store.messages(this.clientId, this.conversationId, 20);
+    // Limit model context, not stored history. Detailed cards remain intact in the DB.
+    return messages.map(({ role, content }) => ({ role, content: content.slice(0, 8000) }));
   }
-}
-
-export function addUserMessage(sessionKey: string, text: string) {
-  const h = getOrInit(sessionKey);
-  h.push({ role: "user", content: text });
-  trim(sessionKey);
-}
-
-export function addAssistantMessage(sessionKey: string, text: string) {
-  const h = getOrInit(sessionKey);
-  h.push({ role: "assistant", content: text });
-  trim(sessionKey);
-}
-
-export function getHistory(sessionKey: string): ChatCompletionMessageParam[] {
-  return [...getOrInit(sessionKey)];
-}
-
-export function clearHistory(sessionKey: string) {
-  histories.delete(sessionKey);
 }

@@ -1,3 +1,7 @@
+import { ConversationStore, ConversationNotFound, withConversationTurn } from "../db/conversations";
+import { ConversationHistory } from "../mcp/llm/history";
+import { MemoryStore } from "../db/memory";
+import { conversationInput, createConversationRouter } from "./conversationRouter";
 // src/routes/appRouter.ts
 
 import { Router } from "express"; // import Express router 
@@ -23,9 +27,12 @@ export function createAppRouter(server: McpServer) { // create the app router (a
   const router = Router(); // create express router
 
   // Single DB pool + resolvers (created once)
-  const db = getDb(); // get pool
+  const db = getDb();
+  const conversations = new ConversationStore(db);
+  const memoryStore = new MemoryStore(db);
   const clientResolver = createClientResolver(db); // client resolver helpers + middleware accessing the DB
   const clientConfigResolver = createClientConfigResolver(db); // config resolver helpers + middleware accessing the DB
+  router.use("/conversations", clientResolver.clientMiddleware, createConversationRouter(conversations));
 
 // -------------------------
 // CHAT WIDGET ENDPOINT
@@ -41,9 +48,10 @@ router.post(
   clientConfigResolver.clientConfigMiddleware, // attach req.clientConfig
   async (req: ClientRequest & ClientConfigRequest, res) => {
     try {
-      const { message, sessionId } = (req.body || {}) as {
+      const { message, sessionId, conversationId } = (req.body || {}) as {
         message?: unknown;
         sessionId?: unknown;
+        conversationId?: unknown;
       }; // read message + sessionId
 
       // validate message
@@ -54,11 +62,12 @@ router.post(
         });
       }
 
-      // validate sessionId (optional, but helps avoid garbage values)
-      const safeSessionId =
-        typeof sessionId === "string" && sessionId.trim().length > 0
-          ? sessionId.trim()
-          : undefined;
+      const parsedConversation = conversationInput.safeParse({
+        sessionId: sessionId ?? (conversationId ? undefined : "default"), conversationId
+      });
+      if (!parsedConversation.success) {
+        return res.status(400).json({ text: "Invalid conversation input" });
+      }
 
       // require a valid resolved client
       const client = req.clientContext; // from resolveClient middleware
@@ -72,21 +81,26 @@ router.post(
       // optional config (should exist if clientKey exists, but keep safe)
       const clientConfig = req.clientConfig || undefined; // from resolveClientConfig middleware
 
-      // pass client + config + session id into the chat logic
-      const result = await handleUserMessage(
-        message,
-        server,
-        { client, clientConfig },
-        safeSessionId
+      const conversation = await conversations.open(
+        String(client.id), parsedConversation.data.sessionId || "default", parsedConversation.data.conversationId
+      );
+      const history = new ConversationHistory(conversations, String(client.id), conversation.id);
+      const result = await withConversationTurn(String(client.id) + ":" + conversation.id, () =>
+        handleUserMessage(message, server, { client, clientConfig, history, memoryStore }, conversation.id)
       );
 
       return res.json({
+        conversationId: conversation.id,
         text: result.text || "",
         debug: CHAT_DEBUG_JSON ? (result.debug || "") : "",
         ui: clientConfig?.ui || null,
         prefs: clientConfig?.prefs || null
       });
     } catch (err) {
+      if (err instanceof ConversationNotFound) return res.status(404).json({ text: "Conversation not found" });
+      if (["42P01", "42501"].includes((err as { code?: string }).code || "")) {
+        return res.status(503).json({ text: "Chat storage unavailable. Check the setup instructions in docs/chat-history.md and docs/memory.md." });
+      }
       console.error("❌ Chat endpoint error:", err);
       return res.status(500).json({
         text: "Server error",

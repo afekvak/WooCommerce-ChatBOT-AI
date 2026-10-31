@@ -1,19 +1,11 @@
 // src/mcp/llm/llm.ts
-import OpenAI from "openai";
-import { getHistory } from "./history";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL
-});
+import { getLlmClient, getLlmModel, getLlmChatOptions } from "./client";
+import type { ChatCompletionMessageParam } from "openai/resources/chat";
 
 // optional options for the fallback chat LLM
 export interface AskLLMOptions {
   clientName?: string;
-  sessionKey?: string;
+  history?: ChatCompletionMessageParam[];
 }
 
 // main fallback chat call
@@ -22,7 +14,7 @@ export async function askLLM(
   options: AskLLMOptions = {}
 ) {
   const { clientName } = options;
-  const sessionKey = options.sessionKey || "default";
+  const history = options.history || [{ role: "user" as const, content: text }];
 
   // IMPORTANT:
   // This widget is running inside WordPress Admin, so the user is an ADMIN/OWNER, not a shopper.
@@ -43,60 +35,12 @@ export async function askLLM(
   // Important:
   // The router already stored the current user message into history for this session.
   // So we only send system + session history.
-  return openai.chat.completions.create({
-    model: process.env.LLM_MODEL || "gpt-3.5-turbo",
-    temperature: 0.4,
+  return getLlmClient().chat.completions.create({
+    model: getLlmModel(),
+    ...getLlmChatOptions(),
     messages: [
       { role: "system", content: systemContent },
-      ...getHistory(sessionKey)
+      ...history
     ]
   });
-}
-
-/**
- * Build a short friendly intro line that comes before a tool result.
- * NOTE: This helper must NOT mention the user's name, even if provided.
- */
-export async function buildToolIntro(params: {
-  toolName: string;
-  lastUserMessage: string;
-  clientName?: string;
-}): Promise<string> {
-  const { toolName, lastUserMessage } = params;
-
-  const systemPrompt =
-    "You are a helper that writes a single friendly sentence that introduces a tool result " +
-    "for a WooCommerce Admin Copilot (WordPress admin dashboard).\n\n" +
-    "You do NOT decide which tool to use and you do NOT show any raw data.\n" +
-    "You only write an intro sentence that will appear before the tool output.\n\n" +
-    "Rules:\n" +
-    "• Use a warm professional tone.\n" +
-    "• Mention the tool context in natural language (product details, list of products, category results, etc.).\n" +
-    "• You MUST NOT mention the user's name even if it is provided in the input.\n" +
-    "• Never ask new questions here; this text comes AFTER the user already asked.\n" +
-    "• Output only one sentence, no bullet list, no code fences, no markdown.";
-
-  const userPayload = {
-    toolName,
-    lastUserMessage,
-    clientName: params.clientName ?? null
-  };
-
-  const completion = await openai.chat.completions.create({
-    model: process.env.LLM_MODEL || "gpt-3.5-turbo",
-    temperature: 0.4,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(userPayload) }
-    ]
-  });
-
-  const out =
-    completion.choices?.[0]?.message?.content?.trim() || "";
-
-  if (!out) {
-    return "Here is the information I collected for you.";
-  }
-
-  return out.replace(/\s+/g, " ").trim();
 }

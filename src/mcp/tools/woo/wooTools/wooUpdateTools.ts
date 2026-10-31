@@ -1,7 +1,7 @@
 // src/mcp/woo/wooTools/wooUpdateTools.ts
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import type { MCPToolResponse } from "../../../types";
-import { registeredTools } from "../../registry";
+import { registerTool } from "../../registry";
 
 import {
   WooUpdateProductByIdArgs,
@@ -16,7 +16,7 @@ import {
 import {
   updateProduct,
   updateProductBySku
-} from "../../../../controllers/wooUpdateController";
+} from "../../../../services/productService";
 
 import { formatSingleProduct } from "../../../../utils/formatWoo";
 
@@ -62,7 +62,7 @@ export function registerWooUpdateTools(server: McpServer) {
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_update_product_by_id",
     {
       title: "WooCommerce Update Product By ID",
@@ -72,9 +72,6 @@ export function registerWooUpdateTools(server: McpServer) {
     updateProductByIdHandler as any
   );
 
-  registeredTools["woo_update_product_by_id"] = {
-    handler: updateProductByIdHandler as any
-  };
 
   // UPDATE PRODUCT BY SKU
   const updateProductBySkuHandler = async (
@@ -114,7 +111,7 @@ export function registerWooUpdateTools(server: McpServer) {
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_update_product_by_sku",
     {
       title: "WooCommerce Update Product By SKU",
@@ -125,7 +122,4 @@ export function registerWooUpdateTools(server: McpServer) {
     updateProductBySkuHandler as any
   );
 
-  registeredTools["woo_update_product_by_sku"] = {
-    handler: updateProductBySkuHandler as any
-  };
 }

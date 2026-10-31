@@ -1,5 +1,6 @@
 // src/mcp/types.ts
 import type { ClientConfig } from "../clientConfig/types.js"; 
+import type { ConversationMemory } from "../services/chatMemory";
 
 export interface ClientContext {
   id: string;
@@ -12,6 +13,8 @@ export interface ClientContext {
 }
 
 export interface ToolCtx {
+  sessionKey?: string;
+  memory?: ConversationMemory;
   client?: ClientContext;
   clientConfig?: ClientConfig; 
 }
@@ -25,6 +28,8 @@ export interface MCPContentBlock {
 }
 
 export interface MCPToolResponse {
+  /** Server-rendered output for the widget; separate from structured tool data sent to the model. */
+  presentation?: { html: string };
   [key: string]: unknown;          
   content: MCPContentBlock[];
 }
@@ -33,19 +38,6 @@ export interface MCPToolResponse {
 //   [key: string]: any;
 // }
 
-export interface HybridFastRuleResult {
-  hit: boolean;
-  tool?: string;
-  args?: Record<string, any>;
-  askUser?: string;
-}
-
-export interface IntentDecision {
-  shouldUseTool: boolean;
-  toolName?: string;
-  args: Record<string, any>;
-  reason: string;
-}
 export interface BotReply {
   text: string;
   debug?: string | Record<string, any>;

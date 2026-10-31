@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import type { MCPToolResponse } from "../../../types";
-import { registeredTools } from "../../registry";
+
 
 import {
   

@@ -2,7 +2,7 @@
 (function () {
   const cfg = window.__MCP_WIDGET_CONFIG__ || {};
   const MCP_URL = cfg.MCP_URL || "https://localhost:3000/chat";
-  const TITLE = cfg.TITLE || "WooCommerce Copilot Assistant";
+  const TITLE = cfg.TITLE || "Store assistant";
   const CLIENT_KEY = cfg.CLIENT_KEY || null;
 
   // ==========================
@@ -10,7 +10,9 @@
   // ==========================
   const STORAGE_NS = `mcp:${CLIENT_KEY || "noKey"}`;
   const KEY_SESSION = `${STORAGE_NS}:session_id`;
-  const KEY_HISTORY = `${STORAGE_NS}:chat_history`;
+  const KEY_CONVERSATION = `${STORAGE_NS}:conversation_id`;
+  const CONVERSATIONS_URL = MCP_URL.replace(/\/chat\/?(?:\?.*)?$/, "/conversations");
+  let CONVERSATION_ID = localStorage.getItem(KEY_CONVERSATION);
   const KEY_UI = `${STORAGE_NS}:ui_cache`;
   const KEY_THEME = `${STORAGE_NS}:theme`;
 
@@ -31,8 +33,15 @@
     const inputField = document.getElementById("message-input");
     const sendBtn = document.getElementById("send-btn");
     const clearBtn = document.getElementById("clear-chat");
+    const newChatBtn = document.getElementById("new-chat");
+    const headerNewBtn = document.getElementById("header-new-chat");
     const closeBtn = document.getElementById("close-chat");
     const resizeBtn = document.getElementById("resize-chat");
+    const chatsBtn = document.getElementById("chats-toggle");
+    const sidebar = document.getElementById("chat-sidebar");
+    const chatList = document.getElementById("chat-list");
+    const sidebarNewBtn = document.getElementById("sidebar-new-chat");
+    let listRequest = 0;
 
     // Optional theme toggle button (if exists in HTML)
     const themeBtn = document.getElementById("theme-toggle");
@@ -45,6 +54,7 @@
     const titleNode = document.getElementById("mcp-title");
     if (titleNode) titleNode.textContent = TITLE;
 
+    const assistantMark = widget.querySelector(".header-icon").innerHTML;
     let pinnedWide = false;
 
     function setTheme(theme) {
@@ -52,6 +62,10 @@
       if (t === "light") widget.classList.add("mcp-theme-light");
       else widget.classList.remove("mcp-theme-light");
 
+      if (themeBtn) {
+        themeBtn.setAttribute("aria-label", `Switch to ${t === "light" ? "dark" : "light"} theme`);
+        themeBtn.setAttribute("aria-pressed", String(t === "light"));
+      }
       try {
         localStorage.setItem(KEY_THEME, t);
       } catch (e) {}
@@ -74,12 +88,12 @@
 
       // Scale
       if (typeof ui.scale === "number" && isFinite(ui.scale) && ui.scale > 0) {
-        widget.style.transform = `scale(${ui.scale})`;
-        widget.style.transformOrigin = "bottom right";
-
-        toggle.style.transform = `scale(${ui.scale})`;
-        toggle.style.transformOrigin = "bottom right";
+        const scale = Math.min(1.5, Math.max(0.75, ui.scale));
+        widget.style.setProperty("--mcp-scale", String(scale));
+        widget.style.transform = `scale(${scale})`;
+        toggle.style.transform = `scale(${scale})`;
       } else {
+        widget.style.setProperty("--mcp-scale", "1");
         widget.style.transform = "";
         toggle.style.transform = "";
       }
@@ -111,11 +125,25 @@
     }
 
     let wizardConfirmOverlay = null;
+    let replayingHistory = false;
+    let busy = true;
+
+    function setBusy(value, keepTyping = false) {
+      busy = value;
+      sendBtn.disabled = value;
+      inputField.disabled = value && !keepTyping;
+      if (clearBtn) clearBtn.disabled = value;
+      if (newChatBtn) newChatBtn.disabled = value;
+      if (headerNewBtn) headerNewBtn.disabled = value;
+      if (sidebarNewBtn) sidebarNewBtn.disabled = value;
+      chatList.querySelectorAll("button").forEach(button => { button.disabled = value; });
+    }
+    setBusy(true);
 
     function scrollToBottom() {
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      }, 50);
+      });
     }
 
     function extractWizardConfirmMeta(text) {
@@ -149,7 +177,7 @@
       return { cleanText, meta };
     }
 
-    function addMessageToDOM(textOrHtml, isUser, isHtmlForAssistant = false) {
+    function addMessageToDOM(textOrHtml, isUser, isHtmlForAssistant = false, createdAt = replayingHistory ? null : new Date().toISOString()) {
       if (
         !isUser &&
         typeof textOrHtml === "string" &&
@@ -161,11 +189,11 @@
         const bodyPart = parts.slice(1).join("[[INTRO_BREAK]]").trim();
 
         if (introPart) {
-          addMessageToDOM(introPart, false, false);
+          addMessageToDOM(introPart, false, false, createdAt);
         }
 
         if (bodyPart) {
-          addMessageToDOM(bodyPart, false, true);
+          addMessageToDOM(bodyPart, false, true, createdAt);
         }
 
         return;
@@ -185,7 +213,8 @@
 
       const avatar = document.createElement("div");
       avatar.className = "message-avatar";
-      avatar.textContent = isUser ? "👤" : "🤖";
+      avatar.innerHTML = isUser ? "" : assistantMark;
+      avatar.setAttribute("aria-hidden", "true");
 
       const bubble = document.createElement("div");
       bubble.className = "message-content";
@@ -211,40 +240,145 @@
         wrap.appendChild(bubble);
       }
 
+      if (createdAt && !String(finalText).includes("mcp-debug")) {
+        const date = new Date(createdAt);
+        if (!Number.isNaN(date.getTime())) {
+          const stamp = document.createElement("time");
+          stamp.className = "message-time"; stamp.dateTime = date.toISOString();
+          stamp.textContent = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          bubble.appendChild(stamp);
+        }
+      }
+      if (createdAt && !String(finalText).includes("mcp-debug")) {
+        const date = new Date(createdAt);
+        if (!Number.isNaN(date.getTime())) {
+          const day = date.toLocaleDateString();
+          const datedMessages = messagesDiv.querySelectorAll(".message[data-day]");
+          const previous = datedMessages[datedMessages.length - 1];
+          if (!previous || previous.dataset.day !== day) {
+            const divider = document.createElement("div"); divider.className = "chat-date-divider";
+            const today = new Date(); const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+            divider.textContent = day === today.toLocaleDateString() ? "Today" : day === yesterday.toLocaleDateString() ? "Yesterday" : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+            messagesDiv.appendChild(divider);
+          }
+          wrap.dataset.day = day;
+        }
+      }
       messagesDiv.appendChild(wrap);
       scrollToBottom();
 
-      if (meta && meta.type === "wizard_confirm") {
+      if (!replayingHistory && meta && meta.type === "wizard_confirm") {
         openWizardConfirmModal(meta);
       }
     }
 
-    function saveHistory() {
-      const msgs = [];
-      document.querySelectorAll(".message").forEach((m) => {
-        const bubble = m.querySelector(".message-content");
-        msgs.push({
-          isUser: m.classList.contains("user"),
-          content: m.classList.contains("user")
-            ? bubble.textContent
-            : bubble.innerHTML,
-          html: !m.classList.contains("user"),
-        });
+    async function conversationRequest(suffix, body) {
+      const response = await fetch(CONVERSATIONS_URL + suffix, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, clientKey: CLIENT_KEY })
       });
-      localStorage.setItem(KEY_HISTORY, JSON.stringify(msgs));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.text || "Could not load chat history");
+      return data;
     }
 
-    function loadHistory() {
-      const saved = localStorage.getItem(KEY_HISTORY);
-      if (!saved) {
-        addMessageToDOM("👋 Hello! Ask me anything about your store.", false, false);
-        return;
-      }
+    function setSidebar(open) {
+      sidebar.hidden = !open;
+      widget.classList.toggle("has-sidebar", open);
+      chatsBtn.setAttribute("aria-expanded", String(open));
+      if (open) refreshChatList();
+      else chatsBtn.focus({ preventScroll: true });
+    }
+
+    async function refreshChatList() {
+      const request = ++listRequest;
+      chatList.setAttribute("aria-busy", "true");
+      if (!chatList.children.length) chatList.textContent = "Loading chats...";
       try {
-        JSON.parse(saved).forEach((m) => addMessageToDOM(m.content, m.isUser, !!m.html));
+        const response = await fetch(CONVERSATIONS_URL, { headers: { "X-MCP-Client-Key": CLIENT_KEY || "" } });
+        const data = await response.json();
+        if (!response.ok) throw new Error("Could not load chats.");
+        if (request !== listRequest) return;
+        chatList.replaceChildren();
+        if (!data.conversations.length) chatList.textContent = "No saved chats yet.";
+        for (const conversation of data.conversations) {
+          const button = document.createElement("button"); button.type = "button"; button.className = "chat-list-item";
+          button.dataset.conversationId = conversation.id; button.disabled = busy;
+          button.setAttribute("aria-current", conversation.id === CONVERSATION_ID ? "page" : "false");
+          const title = document.createElement("span"); title.textContent = conversation.title || "New chat";
+          const date = document.createElement("time"); const timestamp = new Date(conversation.updated_at);
+          if (!Number.isNaN(timestamp.getTime())) { date.dateTime = timestamp.toISOString(); date.textContent = timestamp.toLocaleDateString([], { month: "short", day: "numeric" }); }
+          button.append(title, date);
+          button.addEventListener("click", async () => {
+            if (busy || conversation.id === CONVERSATION_ID) return;
+            await loadHistory(false, conversation.id);
+            if (matchMedia("(max-width: 640px)").matches) setSidebar(false);
+          });
+          const row = document.createElement("div"); row.className = "chat-list-row";
+          const remove = document.createElement("button"); remove.type = "button"; remove.className = "chat-delete";
+          remove.disabled = busy; remove.setAttribute("aria-label", "Delete chat: " + (conversation.title || "New chat")); remove.title = "Delete chat";
+          remove.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg>';
+          remove.addEventListener("click", async () => {
+            if (busy || !confirm("Delete this chat permanently? Its messages and memories saved from it will also be removed.")) return;
+            setBusy(true); ++listRequest;
+            try {
+              await conversationRequest("/" + conversation.id + "/delete", {});
+              if (conversation.id === CONVERSATION_ID) {
+                CONVERSATION_ID = null; localStorage.removeItem(KEY_CONVERSATION);
+                closeWizardConfirmModal(); messagesDiv.replaceChildren();
+                await loadHistory(true);
+              }
+              await refreshChatList();
+            } catch {
+              const error = document.createElement("p"); error.setAttribute("role", "alert");
+              error.textContent = "Could not delete this chat. Please try again."; chatList.prepend(error);
+            } finally { setBusy(false); }
+          });
+          row.append(button, remove); chatList.appendChild(row);
+        }
       } catch {
-        addMessageToDOM("👋 Hello! Ask me anything about your store.", false, false);
-      }
+        if (request !== listRequest) return;
+        chatList.replaceChildren();
+        const message = document.createElement("p"); message.textContent = "Could not load chats.";
+        const retry = document.createElement("button"); retry.type = "button"; retry.className = "sidebar-new"; retry.textContent = "Try again";
+        retry.addEventListener("click", refreshChatList); chatList.append(message, retry);
+      } finally { if (request === listRequest) chatList.removeAttribute("aria-busy"); }
+    }
+
+    async function loadHistory(fresh = false, targetId = null) {
+      setBusy(true);
+      try {
+        const freshSession = "sess_" + Math.random().toString(36).slice(2) + Date.now();
+        const data = await conversationRequest("", fresh ? { sessionId: freshSession } : {
+          sessionId: SESSION_ID,
+          ...((targetId || CONVERSATION_ID) ? { conversationId: targetId || CONVERSATION_ID } : {})
+        });
+        if (fresh || targetId) closeWizardConfirmModal();
+        if (fresh) {
+          SESSION_ID = freshSession;
+          localStorage.setItem(KEY_SESSION, SESSION_ID);
+          closeWizardConfirmModal();
+        }
+        CONVERSATION_ID = data.conversation.id;
+        localStorage.setItem(KEY_CONVERSATION, CONVERSATION_ID);
+        // Do not mix old browser-only history with the server's conversation.
+        localStorage.removeItem(STORAGE_NS + ":chat_history");
+        inputField.value = "";
+        inputField.style.height = "";
+        messagesDiv.innerHTML = "";
+        replayingHistory = true;
+        try {
+          for (const message of data.messages) {
+            addMessageToDOM(message.content, message.role === "user", message.role === "assistant", message.created_at || null);
+          }
+        } finally { replayingHistory = false; }
+        if (!data.messages.length) {
+          addMessageToDOM("👋 Hello! Ask me anything about your store.", false, false);
+        }
+      } catch (error) {
+        addMessageToDOM("⚠️ " + error.message, false, false);
+      } finally { setBusy(false); if (!sidebar.hidden) refreshChatList(); }
     }
 
     function showTyping() {
@@ -252,7 +386,7 @@
       wrap.className = "message assistant";
       wrap.id = "typing-indicator";
       wrap.innerHTML = `
-        <div class="message-avatar">🤖</div>
+        <div class="message-avatar" aria-hidden="true">${assistantMark}</div>
         <div class="typing-indicator">
           <div class="typing-dot"></div>
           <div class="typing-dot"></div>
@@ -287,10 +421,14 @@
     function openWizardConfirmModal(meta) {
       const overlay = document.createElement("div");
       overlay.className = "mcp-confirm-overlay";
+      overlay.classList.toggle("mcp-theme-light", widget.classList.contains("mcp-theme-light"));
       wizardConfirmOverlay = overlay;
 
       const modal = document.createElement("div");
       modal.className = "mcp-confirm-modal";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-label", "Confirm store action");
 
       const body = document.createElement("div");
       body.className = "mcp-confirm-body";
@@ -405,6 +543,15 @@
       modal.appendChild(footer);
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
+      requestAnimationFrame(() => cancelBtn.focus());
+      overlay.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") { event.preventDefault(); cancelBtn.click(); }
+        if (event.key === "Tab") {
+          const items = Array.from(modal.querySelectorAll("button, select"));
+          const next = (items.indexOf(document.activeElement) + (event.shiftKey ? -1 : 1) + items.length) % items.length;
+          event.preventDefault(); items[next].focus();
+        }
+      });
 
       cancelBtn.addEventListener("click", () => {
         sendMessage("cancel");
@@ -437,21 +584,30 @@
       });
     }
 
+    function focusComposer() {
+      if (!wizardConfirmOverlay && !inputField.disabled && widget.getClientRects().length) {
+        inputField.focus({ preventScroll: true });
+      }
+    }
+
     async function sendMessage(overrideText) {
+      if (busy) return;
       const msg =
         overrideText !== undefined
           ? String(overrideText).trim()
           : inputField.value.trim();
       if (!msg) return;
+      setBusy(true, true);
 
       addMessageToDOM(msg, true);
-      saveHistory();
 
       if (overrideText === undefined) {
         inputField.value = "";
+        inputField.style.height = "";
       }
 
       showTyping();
+      requestAnimationFrame(focusComposer);
 
       try {
         const res = await fetch(MCP_URL, {
@@ -460,18 +616,22 @@
           body: JSON.stringify({
             message: msg,
             clientKey: CLIENT_KEY,
-            sessionId: SESSION_ID, // IMPORTANT: isolates server history per session
+            sessionId: SESSION_ID,
+            ...(CONVERSATION_ID ? { conversationId: CONVERSATION_ID } : {}),
           }),
         });
 
         hideTyping();
 
+        const json = await res.json();
         if (!res.ok) {
-          addMessageToDOM("⚠️ Server error: " + res.status, false);
+          addMessageToDOM("⚠️ " + (json.text || "Server error: " + res.status), false, false);
           return;
         }
-
-        const json = await res.json();
+        if (json.conversationId) {
+          CONVERSATION_ID = json.conversationId;
+          localStorage.setItem(KEY_CONVERSATION, CONVERSATION_ID);
+        }
 
         if (json.ui) {
           applyUiSettings(json.ui);
@@ -484,27 +644,12 @@
           addMessageToDOM(json.text, false, true);
         }
 
+        // The server controls debug visibility through CHAT_DEBUG_BLOCKS.
         if (json.debug) {
           // Optional improvement: wrap debug in <details> so it collapses
           addMessageToDOM(
             `
-<details class="mcp-debug">
-  <summary>Debug</summary>
-  <div style="
-    padding:8px 12px;
-    margin-top:8px;
-    border-left:3px solid #c792ea;
-    background:rgba(255,255,255,0.05);
-    border-radius:8px;
-  ">
-    <div style="font-weight:bold; font-size:12px; color:#c792ea; margin-bottom:6px;">
-      DEBUG BLOCK
-    </div>
-    <pre style="font-size:11px; color:#bfc7ff; white-space:pre-wrap; margin:0;">
-${mcpEscapeHtml(json.debug)}
-    </pre>
-  </div>
-</details>
+<details class="mcp-debug"><summary>Debug</summary><pre>${mcpEscapeHtml(json.debug)}</pre></details>
             `,
             false,
             true
@@ -515,16 +660,23 @@ ${mcpEscapeHtml(json.debug)}
           addMessageToDOM("[Invalid response format]", false);
         }
 
-        saveHistory();
       } catch (err) {
         hideTyping();
         addMessageToDOM("❌ Could not reach server.", false);
-      }
+      } finally { setBusy(false); requestAnimationFrame(focusComposer); if (!sidebar.hidden) refreshChatList(); }
     }
 
     // ==========================
     // UI events
     // ==========================
+    chatsBtn.addEventListener("click", () => setSidebar(sidebar.hidden));
+    document.getElementById("close-sidebar").addEventListener("click", () => setSidebar(false));
+    sidebar.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); setSidebar(false); } });
+    sidebarNewBtn.addEventListener("click", async () => { if (!busy) { await loadHistory(true); if (matchMedia("(max-width: 640px)").matches) setSidebar(false); } });
+    if (headerNewBtn) headerNewBtn.addEventListener("click", () => { if (!busy) loadHistory(true); });
+    if (newChatBtn) {
+      newChatBtn.addEventListener("click", () => { if (!busy) loadHistory(true); });
+    }
     if (resizeBtn) {
       resizeBtn.addEventListener("click", () => {
         const nowWide = !widget.classList.contains("wide");
@@ -533,46 +685,49 @@ ${mcpEscapeHtml(json.debug)}
       });
     }
 
-    messagesDiv.addEventListener(
-      "toggle",
-      (e) => {
-        const t = e.target;
-        if (!(t instanceof HTMLDetailsElement)) return;
-
-        if (t.open) {
-          widget.classList.add("wide");
-          setTimeout(() => t.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50);
-        } else {
-          const anyOpen = messagesDiv.querySelector("details[open]");
-          if (!anyOpen && !pinnedWide) widget.classList.remove("wide");
-        }
-      },
-      true
-    );
+    // Chat width changes only through the explicit expand control.
 
     if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        if (!confirm("Clear chat history?")) return;
-        messagesDiv.innerHTML = "";
-        localStorage.removeItem(KEY_HISTORY);
+      clearBtn.addEventListener("click", async () => {
+        if (busy || !CONVERSATION_ID || !confirm("Delete this conversation's saved messages and memories learned from them?")) return;
+        setBusy(true);
+        try {
+          await conversationRequest("/" + CONVERSATION_ID + "/clear", {});
+          closeWizardConfirmModal();
+          messagesDiv.innerHTML = "";
+          addMessageToDOM("Chat history cleared. Start a new message.", false, false);
+          if (!sidebar.hidden) refreshChatList();
+        } catch (error) {
+          addMessageToDOM("⚠️ " + error.message, false, false);
+        } finally { setBusy(false); }
       });
     }
 
     if (closeBtn) {
       closeBtn.addEventListener("click", () => {
         widget.style.display = "none";
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.focus({ preventScroll: true });
         toggle.style.display = "flex";
       });
     }
 
     toggle.addEventListener("click", () => {
-      widget.style.display = "flex";
+      widget.style.display = "grid";
+      toggle.setAttribute("aria-expanded", "true");
+      requestAnimationFrame(() => { scrollToBottom(); inputField.focus({ preventScroll: true }); });
       toggle.style.display = "none";
     });
 
+    inputField.addEventListener("input", () => {
+      inputField.style.height = "auto";
+      inputField.style.height = Math.min(inputField.scrollHeight, 112) + "px";
+    });
     sendBtn.addEventListener("click", () => sendMessage());
     inputField.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault(); sendMessage();
+      }
     });
 
     if (themeBtn) {

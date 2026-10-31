@@ -1,9 +1,9 @@
 // src/mcp/llm/wizard/handler.ts
 
 import { getWizard, setWizard, clearWizard, WizardState } from "./state";
-import { createProduct } from "../../../../controllers/wooAddController";
+import { createProduct } from "../../../../services/productService";
 import { formatSingleProduct } from "../../../../utils/formatWoo";
-import { createWooClient } from "../../../../controllers/wooClient";
+import { createProductService } from "../../../../services/productService";
 
 // new: client context and shared Woo resolver
 import type { ToolCtx } from "../../../types";
@@ -301,19 +301,20 @@ const ADVANCED_QUESTIONS: Record<AdvancedSectionName, Question[]> = {
    PUBLIC API
    ================================ */
 
-export function startCreateProductWizard(sessionId: string): string {
+export function startCreateProductWizard(sessionId: string, options?: { guided?: boolean; data?: Record<string, unknown> }): string {
   const state: WizardState = {
     mode: "create_product",
-    stage: "mode_choice",
+    stage: options?.guided ? "basic" : "mode_choice",
     basicIndex: 0,
     advancedMode: "none",
     advancedSections: [],
     currentSectionIndex: 0,
     currentFieldIndex: 0,
-    data: {}
+    data: options?.guided ? {status:"draft",...options.data} : {}
   };
 
   setWizard(sessionId, state);
+  if (options?.guided) return nextBasicQuestion(sessionId, state).reply;
 
   return [
     "You want to create a new WooCommerce product.",
@@ -679,7 +680,11 @@ function handleBasicStage(
   }
 
   state.basicIndex += 1;
+  return nextBasicQuestion(sessionId, state);
+}
 
+function nextBasicQuestion(sessionId: string, state: WizardState): {reply:string;done:boolean} {
+  while (state.basicIndex < BASIC_QUESTIONS.length && Object.prototype.hasOwnProperty.call(state.data, BASIC_QUESTIONS[state.basicIndex].key)) state.basicIndex += 1;
   if (state.basicIndex >= BASIC_QUESTIONS.length) {
     state.stage = "ask_advanced";
     setWizard(sessionId, state);
@@ -909,7 +914,7 @@ async function createProductFromState(
     Array.isArray(state.data.tags) && state.data.tags.length > 0;
 
   if (hasCategories || hasTags) {
-    const api = createWooClient(url, ck, cs);
+    const productsService = createProductService(url, ck, cs);
 
     if (hasCategories) {
       const resolvedCats: { id: number }[] = [];
@@ -918,13 +923,13 @@ async function createProductFromState(
         const name = term?.name;
         if (!name) continue;
 
-        const resp = await api.get("products/categories", {
+        const matches = await productsService.findTerms("categories", {
           per_page: 50,
           search: name
         });
 
-        if (Array.isArray(resp.data) && resp.data.length) {
-          resolvedCats.push({ id: resp.data[0].id });
+        if (Array.isArray(matches) && matches.length) {
+          resolvedCats.push({ id: matches[0].id });
         }
       }
 
@@ -940,13 +945,13 @@ async function createProductFromState(
         const name = term?.name;
         if (!name) continue;
 
-        const resp = await api.get("products/tags", {
+        const matches = await productsService.findTerms("tags", {
           per_page: 50,
           search: name
         });
 
-        if (Array.isArray(resp.data) && resp.data.length) {
-          resolvedTags.push({ id: resp.data[0].id });
+        if (Array.isArray(matches) && matches.length) {
+          resolvedTags.push({ id: matches[0].id });
         }
       }
 

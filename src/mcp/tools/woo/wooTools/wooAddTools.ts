@@ -2,9 +2,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import type { TextContent } from "@modelcontextprotocol/sdk/types.js";
 import type { MCPToolResponse } from "../../../types";
-import { registeredTools } from "../../registry";
+import { registerTool } from "../../registry";
 
-import { createProduct } from "../../../../controllers/wooAddController";
+import { createProduct } from "../../../../services/productService";
 import { formatSingleProduct } from "../../../../utils/formatWoo";
 
 import { wooCreateProductSchema } from "../wooSchemas/addSchemas";
@@ -49,7 +49,7 @@ export function registerWooAddTools(server: McpServer) {
     }
   };
 
-  server.registerTool(
+  registerTool(server,
     "woo_create_product",
     {
       title: "WooCommerce Create Product",
@@ -59,7 +59,4 @@ export function registerWooAddTools(server: McpServer) {
     handler as any
   );
 
-  registeredTools["woo_create_product"] = {
-    handler
-  };
 }

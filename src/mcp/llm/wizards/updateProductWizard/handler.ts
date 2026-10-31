@@ -1,3 +1,4 @@
+import { z } from "zod";
 // src/mcp/llm/updateproductwizard/handler.ts
 
 import {
@@ -10,30 +11,21 @@ import {
 import {
   getProductById,
   getProductBySku
-} from "../../../../controllers/wooGetController";
+} from "../../../../services/productService";
 
-import { updateProduct } from "../../../../controllers/wooUpdateController";
-import { formatSingleProduct } from "../../../../utils/formatWoo";
+import { updateProduct } from "../../../../services/productService";
+import { formatProducts } from "../../../../utils/formatWoo";
 
 // NEW: bring in ToolCtx and shared Woo credential resolver
 import type { ToolCtx } from "../../../types";
 import { resolveWooCredentials } from "../../../tools/woo/wooCredentials.js";
+import {validateProductChanges, applyImageChange, type ImageChange} from "../../../../services/productSchema";
+import { updateChangesSchema } from "../../../tools/workflowSchemas";
 
 type StepResult = { reply: string; done: boolean };
 
 // fields we allow the wizard to edit
-const ALLOWED_UPDATE_FIELDS = [
-  "name",
-  "regular_price",
-  "sale_price",
-  "status",
-  "sku",
-  "stock_quantity",
-  "stock_status",
-  "manage_stock",
-  "description",
-  "short_description"
-];
+const ALLOWED_UPDATE_FIELDS = Object.keys(updateChangesSchema.shape);
 
 // ================================
 // PUBLIC API
@@ -41,7 +33,7 @@ const ALLOWED_UPDATE_FIELDS = [
 
 export async function startUpdateProductWizard(
   sessionId: string,
-  target: { id?: number; sku?: string },
+  target: { id?: number; sku?: string; changes?: Record<string, unknown>; imageChange?: ImageChange; priceAdjustment?: { field: "regular_price" | "sale_price"; direction: "increase" | "decrease"; percent: number } },
   ctx?: ToolCtx
 ): Promise<StepResult> {
   // IMPORTANT: use client / env credentials, not hard-coded env only
@@ -100,6 +92,20 @@ export async function startUpdateProductWizard(
     };
   }
 
+  if (target.priceAdjustment) {
+    const { field, direction, percent } = target.priceAdjustment;
+    const current = Number(original[field]);
+    if (original[field] === "" || original[field] == null || !Number.isFinite(current) || current < 0 || (direction === "decrease" && percent > 100) || target.changes?.[field] !== undefined) {
+      return { done: true, reply: "I need a valid existing price and one unambiguous price change before preparing this update." };
+    }
+    target = { ...target, changes: { ...target.changes, [field]: (Math.round(current * (1 + (direction === "increase" ? 1 : -1) * percent / 100) * 100) / 100).toFixed(2) } };
+  }
+  if (target.imageChange) {
+    if (target.changes?.images !== undefined) return {done:true,reply:"Please choose one image operation rather than supplying both imageChange and images."};
+    try { target = { ...target, changes: { ...target.changes, images: applyImageChange(original, target.imageChange) } }; }
+    catch (error) { return {done:true,reply:error instanceof Error ? error.message : "Invalid image change."}; }
+  }
+  if (target.changes) target.changes = validateProductChanges(target.changes);
   const state: UpdateProductWizardState = {
     stage: "choose_fields",
     productId,
@@ -110,6 +116,13 @@ export async function startUpdateProductWizard(
   };
 
   setUpdateWizard(sessionId, state);
+
+  if (target.changes && Object.keys(target.changes).length) {
+    state.payload = updateChangesSchema.parse(target.changes);
+    state.fieldKeys = Object.keys(state.payload);
+    state.stage = "confirm";
+    return { done: false, reply: buildConfirmationSummary(state) };
+  }
 
   const name = original.name ?? "(no name)";
 
@@ -268,39 +281,21 @@ function handleAskValuesStage(
   const field = fieldKeys[idx];
 
   if (t.toLowerCase() !== "skip" && t !== "") {
-    let value: any = t;
-
-    if (field === "regular_price" || field === "sale_price") {
-      const n = Number(t);
-      if (Number.isNaN(n) || n < 0) {
-        return {
-          done: false,
-          reply: "Please type a valid positive number or skip."
-        };
+    let value: unknown = t;
+    const fieldSchema = updateChangesSchema.shape[field as keyof typeof updateChangesSchema.shape];
+    const underlying = fieldSchema.unwrap();
+    try {
+      if (underlying instanceof z.ZodNullable && t === "null") value = null;
+      else if (underlying instanceof z.ZodBoolean) {
+        if (/^(yes|y|true)$/i.test(t)) value = true;
+        else if (/^(no|n|false)$/i.test(t)) value = false;
+      } else if (underlying instanceof z.ZodNumber) value = Number(t);
+      else if (underlying instanceof z.ZodArray || underlying instanceof z.ZodObject) {
+        value = field === "images" && /^https?:\/\//i.test(t) ? applyImageChange(state.originalProduct, {mode:"replace_featured",images:[{src:t}]}) : JSON.parse(t);
       }
-      value = n.toFixed(2);
-    } else if (field === "stock_quantity") {
-      const n = Number(t);
-      if (!Number.isInteger(n) || n < 0) {
-        return {
-          done: false,
-          reply: "Please type a valid non negative integer or skip."
-        };
-      }
-      value = n;
-    } else if (field === "manage_stock") {
-      const low = t.toLowerCase();
-      if (["yes", "y", "true"].includes(low)) value = true;
-      else if (["no", "n", "false"].includes(low)) value = false;
-      else {
-        return {
-          done: false,
-          reply: "Please type yes, no, or skip."
-        };
-      }
-    } else {
-      value = t;
-    }
+      value = fieldSchema.parse(value);
+      validateProductChanges({[field]:value});
+    } catch { return {done:false,reply:"That value is not valid for " + field + ". Use a valid value (JSON for lists/objects), or skip."}; }
 
     state.payload[field] = value;
   }
@@ -344,11 +339,11 @@ function buildConfirmationSummary(state: UpdateProductWizardState): string {
       const beforeStr =
         before === undefined || before === null || before === ""
           ? "(none)"
-          : String(before);
+          : typeof before === "object" ? JSON.stringify(before) : String(before);
       const afterStr =
         after === undefined || after === null || after === ""
           ? "(none)"
-          : String(after);
+          : typeof after === "object" ? JSON.stringify(after) : String(after);
 
       summary[pretty] = `${beforeStr} → ${afterStr}`;
       lines.push(`• ${pretty}: ${beforeStr} → ${afterStr}`);
@@ -422,10 +417,18 @@ async function handleConfirmStage(
     // IMPORTANT: again, use client-aware credentials
     const { url, ck, cs } = resolveWooCredentials({}, ctx);
 
-    const updated = await updateProduct(url, ck, cs, productId, payload);
+    if (payload.images !== undefined) {
+      const fresh = await getProductById(url, ck, cs, productId);
+      const identity = (images: any[]) => JSON.stringify((images || []).map(image => ({id:image.id,src:image.src})));
+      if (identity(fresh.images) !== identity(state.originalProduct.images)) {
+        clearUpdateWizard(sessionId);
+        return {done:true,reply:"This product's images changed after the preview. Ask for the image change again so I can preserve the current gallery."};
+      }
+    }
+    const updated = await updateProduct(url, ck, cs, productId, validateProductChanges(payload));
     clearUpdateWizard(sessionId);
 
-    const html = formatSingleProduct(updated);
+    const html = formatProducts([updated]);
 
     const reply = "✅ Product updated successfully.\n\n" + html;
 

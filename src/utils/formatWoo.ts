@@ -62,7 +62,16 @@ export function formatProducts(products: any[]): string {
 .products-empty{opacity:.8}
 </style>`;
 
-  const cards = products.map((p) => renderProduct(p)).join("");
+  const cards = products.map((p) => {
+    const image = p.images?.[0]?.src;
+    const thumbnail = typeof image === "string" && /^https?:\/\//i.test(image)
+      ? '<img class="product-thumbnail" loading="lazy" alt="" src="' + safe(image).replace(/"/g, "&quot;") + '">'
+      : '<span class="product-thumbnail product-placeholder" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 9 8-4.5M12 12 4 7.5M12 12v9"/></svg></span>';
+    return '<article class="product-card product-preview"><div class="product-preview-main">' + thumbnail +
+      '<div class="product-preview-copy"><h3>' + safe(p.name || '(Unnamed product)') + '</h3><span class="product-reference">Product #' + safe(p.id) + ' &middot; ' + safe(p.status || '') + '</span>' +
+      '<div class="product-preview-price"><strong>' + safe(money(choose(p.price, p.regular_price))) + '</strong><span>' + (p.stock_status === 'instock' ? 'In stock' : safe(p.stock_status || '')) + '</span></div></div></div>' +
+      '<details class="product-more"><summary>View details</summary>' + renderProduct(p) + '</details></article>';
+  }).join("");
   return style + cards;
 }
 
@@ -409,71 +418,7 @@ function detectBrands(p: any): string {
 ------------------------------------------- */
 
 export function formatSingleProduct(product: any): string {
-  // reuse the same style as list view
-  const style = `
-<style>
-/* layout */
-.product-card,
-.product-card * { box-sizing: border-box; }
-
-.product-card{
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(102,126,234,0.25);
-  border-radius:12px;
-  padding:12px 14px;
-  margin:12px 0;
-  color:#e0e0ff;
-}
-.product-card h3{margin:0 0 8px 0;font-size:16px}
-.product-card p{margin:4px 0 0 0;font-size:13px}
-
-/* wrap long content everywhere (links, long words) */
-.product-card a,
-.product-card p,
-.product-card dd,
-.product-card dt,
-.product-card li {
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
-.product-card a{color:#a6b8ff;text-decoration:underline}
-
-.product-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.badge{display:inline-block;border:1px solid rgba(255,255,255,0.25);padding:2px 6px;border-radius:8px;font-size:12px;opacity:.9}
-.price{font-weight:700}
-.sale{color:#ffd166;font-weight:700;margin-left:8px}
-.tags, .cats, .brands{opacity:.9}
-
-/* media strip */
-.media-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.media-strip img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,0.2)}
-
-/* details accordion */
-.details{margin-top:10px}
-.details summary{cursor:pointer;user-select:none;font-weight:700;font-size:14px;margin-bottom:6px}
-.kv-table{display:grid;grid-template-columns:minmax(120px, 180px) 1fr;gap:6px 12px;margin:6px 0}
-.details dt{opacity:.8}
-.details dd{margin:0;white-space:pre-wrap}
-
-/* lists */
-.kv-list{margin:4px 0 0 0;padding-left:16px}
-.kv-list li{margin:2px 0;font-size:13px}
-
-/* tables */
-.attr-table, .dl-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px;table-layout:fixed}
-.attr-table th, .attr-table td, .dl-table th, .dl-table td{border:1px solid rgba(255,255,255,0.2);padding:6px;vertical-align:top;word-break:break-word;overflow-wrap:anywhere}
-.attr-table th, .dl-table th{background:rgba(255,255,255,0.06)}
-.code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; word-break:break-all}
-
-.hr{height:1px;background:rgba(255,255,255,0.15);margin:8px 0}
-.products-empty{opacity:.8}
-</style>`;
-
-  // render the same card and force the details block to be open for single view
-  let card = renderProduct(product);
-  card = card.replace('<details class="details">', '<details class="details" open>');
-
-  return style + card;
+  return formatProducts([product]);
 }
 
 /* -------------------------------------------
@@ -488,3 +433,11 @@ export function formatProductBySku(product: any): string {
 
 
 //more formats
+/** Present catalog product/variation data through the same trusted card renderer. */
+export function formatCatalogProducts(resource: "product" | "variation", items: any[], parentId?: number): string {
+  return formatProducts(items.map(item => resource === "product" ? item : {
+    ...item,
+    name: item.name || ["Variation #" + item.id, ...(item.attributes || []).map((attr: any) => attr.option).filter(Boolean), parentId ? "Product #" + parentId : ""].filter(Boolean).join(" / "),
+    images: item.image ? [item.image] : []
+  }));
+}
